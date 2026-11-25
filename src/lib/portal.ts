@@ -27,12 +27,22 @@ export function urlPortal(origem: string, token: string) {
 export type InfoPortal = {
   empresa: string;
   cor: string;
+  logo_url: string | null;
   corretor: string;
   pergunta: "cpf" | "nascimento" | "nenhuma";
   bloqueado: boolean;
 };
 
-export type DocumentoPortal = { id: string; nome: string; pasta: string; status: "ok" | "pendente" | "recusado"; tamanho_bytes: number | null; criado_em: string };
+export type DocumentoPortal = {
+  id: string;
+  nome: string;
+  pasta: string;
+  status: "ok" | "pendente" | "recusado";
+  tamanho_bytes: number | null;
+  criado_em: string;
+  enviado_por: "corretor" | "cliente";
+  visivel: boolean;
+};
 
 type VendaPortal = {
   id: string;
@@ -49,6 +59,7 @@ type VendaPortal = {
 export type DadosPortal = {
   empresa: string;
   cor: string;
+  logo_url: string | null;
   expira_em: string;
   cliente: { nome: string };
   corretor: { nome: string; creci: string | null; telefone: string | null };
@@ -122,6 +133,18 @@ export async function registrarDocumentoPortal(token: string, doc: { pasta: stri
   });
   if (error) throw new Error(error.message);
   return data;
+}
+
+/** Documento que o cliente pode abrir (enviado por ele ou liberado pelo corretor). Nulo se não pode. */
+export async function documentoPortal(token: string, id: string) {
+  const sessao = await sessaoAtual();
+  if (!sessao || !tokenValido(token) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .rpc("portal_documento", { p_link: hashToken(token), p_sessao: hashToken(sessao), p_documento: id })
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as { nome: string; mime: string | null; chave_arquivo: string };
 }
 
 export async function sairPortal() {

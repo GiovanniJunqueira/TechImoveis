@@ -6,7 +6,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const { perfil, tenant, email } = await getContexto();
   return (
     <div id="app-root" style={{ "--accent": tenant.cor_destaque } as CSSProperties}>
-      <AppShell usuario={{ nome: perfil.nome || email, creci: perfil.creci }}>{children}</AppShell>
+      <AppShell usuario={{ nome: perfil.nome || email, creci: perfil.creci }} empresa={{ nome: tenant.nome, logoUrl: tenant.logo_url }}>
+        {children}
+      </AppShell>
     </div>
   );
 }

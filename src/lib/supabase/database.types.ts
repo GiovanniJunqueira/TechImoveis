@@ -65,14 +65,14 @@ isOneToOne: false
                   ]
                 },"documentos": {
                   Row: {
-                    "chave_arquivo": string,"cliente_id": string,"criado_em": string,"enviado_por": Database["public"]['Enums']["origem_documento"],"id": string,"mime": string | null,"nome": string,"pasta": string,"status": Database["public"]['Enums']["status_documento"],"tamanho_bytes": number | null,"tenant_id": string,"venda_id": string | null
+                    "chave_arquivo": string,"cliente_id": string,"criado_em": string,"enviado_por": Database["public"]['Enums']["origem_documento"],"id": string,"mime": string | null,"nome": string,"pasta": string,"status": Database["public"]['Enums']["status_documento"],"tamanho_bytes": number | null,"tenant_id": string,"venda_id": string | null,"visivel_cliente": boolean
                   }
                   ComputedFields: never
                   Insert: {
-                    "chave_arquivo": string,"cliente_id": string,"criado_em"?: string,"enviado_por"?: Database["public"]['Enums']["origem_documento"],"id"?: string,"mime"?: string | null,"nome": string,"pasta"?: string,"status"?: Database["public"]['Enums']["status_documento"],"tamanho_bytes"?: number | null,"tenant_id"?: string,"venda_id"?: string | null
+                    "chave_arquivo": string,"cliente_id": string,"criado_em"?: string,"enviado_por"?: Database["public"]['Enums']["origem_documento"],"id"?: string,"mime"?: string | null,"nome": string,"pasta"?: string,"status"?: Database["public"]['Enums']["status_documento"],"tamanho_bytes"?: number | null,"tenant_id"?: string,"venda_id"?: string | null,"visivel_cliente"?: boolean
                   }
                   Update: {
-                    "chave_arquivo"?: string,"cliente_id"?: string,"criado_em"?: string,"enviado_por"?: Database["public"]['Enums']["origem_documento"],"id"?: string,"mime"?: string | null,"nome"?: string,"pasta"?: string,"status"?: Database["public"]['Enums']["status_documento"],"tamanho_bytes"?: number | null,"tenant_id"?: string,"venda_id"?: string | null
+                    "chave_arquivo"?: string,"cliente_id"?: string,"criado_em"?: string,"enviado_por"?: Database["public"]['Enums']["origem_documento"],"id"?: string,"mime"?: string | null,"nome"?: string,"pasta"?: string,"status"?: Database["public"]['Enums']["status_documento"],"tamanho_bytes"?: number | null,"tenant_id"?: string,"venda_id"?: string | null,"visivel_cliente"?: boolean
                   }
                   Relationships: [
                     {
@@ -189,14 +189,14 @@ isOneToOne: false
                   ]
                 },"modelos_pagamento": {
                   Row: {
-                    "atualizado_em": string,"construtora_id": string | null,"construtora_nome": string | null,"criado_em": string,"descricao": string | null,"id": string,"nome": string,"series": NonNullable<Json>,"tenant_id": string | null
+                    "atualizado_em": string,"construtora_id": string | null,"construtora_nome": string | null,"criado_em": string,"descricao": string | null,"id": string,"nome": string,"regras": NonNullable<Json>,"series": NonNullable<Json>,"tenant_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "atualizado_em"?: string,"construtora_id"?: string | null,"construtora_nome"?: string | null,"criado_em"?: string,"descricao"?: string | null,"id"?: string,"nome": string,"series"?: NonNullable<Json>,"tenant_id"?: string | null
+                    "atualizado_em"?: string,"construtora_id"?: string | null,"construtora_nome"?: string | null,"criado_em"?: string,"descricao"?: string | null,"id"?: string,"nome": string,"regras"?: NonNullable<Json>,"series"?: NonNullable<Json>,"tenant_id"?: string | null
                   }
                   Update: {
-                    "atualizado_em"?: string,"construtora_id"?: string | null,"construtora_nome"?: string | null,"criado_em"?: string,"descricao"?: string | null,"id"?: string,"nome"?: string,"series"?: NonNullable<Json>,"tenant_id"?: string | null
+                    "atualizado_em"?: string,"construtora_id"?: string | null,"construtora_nome"?: string | null,"criado_em"?: string,"descricao"?: string | null,"id"?: string,"nome"?: string,"regras"?: NonNullable<Json>,"series"?: NonNullable<Json>,"tenant_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -229,14 +229,14 @@ isOneToOne: false
                   ]
                 },"plano_series": {
                   Row: {
-                    "criado_em": string,"descricao": string | null,"id": string,"intervalo_meses": number,"ordem": number,"primeiro_vencimento": string | null,"quantidade": number,"tenant_id": string,"tipo": Database["public"]['Enums']["tipo_serie"],"valor_total_centavos": number,"venda_id": string
+                    "criado_em": string,"descricao": string | null,"id": string,"intervalo_meses": number,"ordem": number,"primeiro_vencimento": string | null,"quantidade": number,"tenant_id": string,"teto_imovel_percentual": number | null,"teto_renda_percentual": number | null,"tipo": Database["public"]['Enums']["tipo_serie"],"valor_total_centavos": number,"venda_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "criado_em"?: string,"descricao"?: string | null,"id"?: string,"intervalo_meses"?: number,"ordem"?: number,"primeiro_vencimento"?: string | null,"quantidade"?: number,"tenant_id"?: string,"tipo": Database["public"]['Enums']["tipo_serie"],"valor_total_centavos": number,"venda_id": string
+                    "criado_em"?: string,"descricao"?: string | null,"id"?: string,"intervalo_meses"?: number,"ordem"?: number,"primeiro_vencimento"?: string | null,"quantidade"?: number,"tenant_id"?: string,"teto_imovel_percentual"?: number | null,"teto_renda_percentual"?: number | null,"tipo": Database["public"]['Enums']["tipo_serie"],"valor_total_centavos": number,"venda_id": string
                   }
                   Update: {
-                    "criado_em"?: string,"descricao"?: string | null,"id"?: string,"intervalo_meses"?: number,"ordem"?: number,"primeiro_vencimento"?: string | null,"quantidade"?: number,"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_serie"],"valor_total_centavos"?: number,"venda_id"?: string
+                    "criado_em"?: string,"descricao"?: string | null,"id"?: string,"intervalo_meses"?: number,"ordem"?: number,"primeiro_vencimento"?: string | null,"quantidade"?: number,"tenant_id"?: string,"teto_imovel_percentual"?: number | null,"teto_renda_percentual"?: number | null,"tipo"?: Database["public"]['Enums']["tipo_serie"],"valor_total_centavos"?: number,"venda_id"?: string
                   }
                   Relationships: [
                     {
@@ -315,14 +315,14 @@ isOneToOne: false
                   ]
                 },"vendas": {
                   Row: {
-                    "atualizado_em": string,"banco_financiamento": string | null,"cliente_id": string,"comissao_centavos": number,"comissao_percentual": number | null,"construtora_id": string | null,"criado_em": string,"data_venda": string,"empreendimento_id": string | null,"id": string,"imobiliaria_id": string | null,"imovel_descricao": string | null,"observacoes": string | null,"status": Database["public"]['Enums']["status_venda"],"tenant_id": string,"tipo": Database["public"]['Enums']["tipo_venda"],"unidade": string | null,"valor_venda_centavos": number
+                    "atualizado_em": string,"banco_financiamento": string | null,"cliente_id": string,"comissao_centavos": number,"comissao_percentual": number | null,"construtora_id": string | null,"criado_em": string,"data_venda": string,"desconto_financiamento_percentual": number | null,"empreendimento_id": string | null,"financiamento_aprovado_centavos": number | null,"id": string,"imobiliaria_id": string | null,"imovel_descricao": string | null,"observacoes": string | null,"renda_centavos": number | null,"status": Database["public"]['Enums']["status_venda"],"tenant_id": string,"tipo": Database["public"]['Enums']["tipo_venda"],"unidade": string | null,"valor_venda_centavos": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "atualizado_em"?: string,"banco_financiamento"?: string | null,"cliente_id": string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"empreendimento_id"?: string | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos": number
+                    "atualizado_em"?: string,"banco_financiamento"?: string | null,"cliente_id": string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"desconto_financiamento_percentual"?: number | null,"empreendimento_id"?: string | null,"financiamento_aprovado_centavos"?: number | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"renda_centavos"?: number | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos": number
                   }
                   Update: {
-                    "atualizado_em"?: string,"banco_financiamento"?: string | null,"cliente_id"?: string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"empreendimento_id"?: string | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos"?: number
+                    "atualizado_em"?: string,"banco_financiamento"?: string | null,"cliente_id"?: string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"desconto_financiamento_percentual"?: number | null,"empreendimento_id"?: string | null,"financiamento_aprovado_centavos"?: number | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"renda_centavos"?: number | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos"?: number
                   }
                   Relationships: [
                     {
@@ -368,6 +368,11 @@ isOneToOne: false
                            },
 "portal_destino":
 { Args: { "p_link": string,"p_sessao": string }; Returns: string
+                           },
+"portal_documento":
+{ Args: { "p_documento": string,"p_link": string,"p_sessao": string }; Returns: {
+              "chave_arquivo": string,"mime": string,"nome": string
+            }[]
                            },
 "portal_entrar":
 { Args: { "p_link": string,"p_resposta": string,"p_sessao": string }; Returns: string

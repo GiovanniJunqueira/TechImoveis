@@ -7,7 +7,7 @@ import type { EstadoForm } from "@/app/(auth)/actions";
 import { LixeiraConfirmar } from "@/components/botao-excluir";
 import { Field, FieldGroup, FormMessage, FormSemReset, MoneyField, Segmented, SelectField, SubmitButton, TextAreaField, Toggle } from "@/components/form";
 import { cn } from "@/components/ui";
-import { GRUPO_LABEL, GRUPO_SERIE, INTERVALOS, PADRAO_SERIE, TIPOS_POR_GRUPO, TIPO_SERIE_LABEL, type GrupoSerie, type SerieModelo, type TipoSerie } from "@/lib/plano";
+import { GRUPO_LABEL, GRUPO_SERIE, INTERVALOS, PADRAO_SERIE, TIPOS_POR_GRUPO, TIPO_SERIE_LABEL, type GrupoSerie, type RegrasModelo, type SerieModelo, type TipoSerie } from "@/lib/plano";
 import { pctTexto, resumoSerieModelo } from "../../resumo";
 
 type Modo = "pct" | "fixo" | "aberto";
@@ -23,7 +23,21 @@ type Linha = {
   intervalo: string;
   prazo: string; // meses após a venda
   semData: boolean;
+  mesFixo: string; // "" ou "1".."12": vence sempre neste mês
+  tetoRenda: string; // máx. de cada parcela em % da renda (em aberto)
+  tetoImovel: string; // máx. da série em % do imóvel (em aberto)
+  completa: boolean; // fica com a diferença na proposta
 };
+
+const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const OPCOES_MES = [{ value: "", label: "Qualquer mês" }, ...MESES.map((m, i) => ({ value: String(i + 1), label: m }))];
+const pctCampo = (v: string) =>
+  v
+    .replace(/\./g, ",")
+    .replace(/[^\d,]/g, "")
+    .replace(/,(?=.*,)/g, "")
+    .slice(0, 6);
+const pctOpcional = (v: string) => (v ? (Number.isFinite(numeroPct(v)) ? numeroPct(v) : -1) : null);
 
 const GRUPOS: GrupoSerie[] = ["entrada", "banco"];
 const MODOS = [
@@ -62,6 +76,10 @@ function linhaPadrao(tipo: TipoSerie): Linha {
     intervalo: String(PADRAO_SERIE[tipo].intervalo || 1),
     prazo: prazo == null ? "" : String(prazo),
     semData: prazo == null,
+    mesFixo: "",
+    tetoRenda: "",
+    tetoImovel: "",
+    completa: false,
   };
 }
 
@@ -77,6 +95,10 @@ function paraLinha(s: SerieModelo): Linha {
     intervalo: String(s.intervalo_meses || PADRAO_SERIE[s.tipo].intervalo || 1),
     prazo: s.defasagem_meses == null ? "" : String(s.defasagem_meses),
     semData: s.defasagem_meses == null,
+    mesFixo: s.mes_fixo ? String(s.mes_fixo) : "",
+    tetoRenda: s.teto_renda_percentual ? String(s.teto_renda_percentual).replace(".", ",") : "",
+    tetoImovel: s.teto_imovel_percentual ? String(s.teto_imovel_percentual).replace(".", ",") : "",
+    completa: s.completa === true,
   };
 }
 
@@ -91,6 +113,10 @@ function paraSerie(l: Linha): SerieModelo {
     valor_parcela_centavos: l.modo === "fixo" ? l.valor : null,
     intervalo_meses: quantidade > 1 ? inteiro(l.intervalo, 1) : 0,
     defasagem_meses: l.semData ? null : inteiro(l.prazo, -1),
+    ...(!l.semData && l.mesFixo && { mes_fixo: Number(l.mesFixo) }),
+    ...(l.modo === "aberto" && pctOpcional(l.tetoRenda) != null && { teto_renda_percentual: pctOpcional(l.tetoRenda) }),
+    ...(l.modo === "aberto" && pctOpcional(l.tetoImovel) != null && { teto_imovel_percentual: pctOpcional(l.tetoImovel) }),
+    ...(l.modo === "aberto" && l.completa && { completa: true }),
   };
 }
 
@@ -183,7 +209,16 @@ function EditorLinha({
         {l.modo === "fixo" && (
           <MoneyField label={qtd > 1 ? "Valor de cada parcela" : "Valor"} name={`valor-${l.key}`} value={l.valor} onChange={(valor) => alterar({ valor })} />
         )}
-        {l.modo === "aberto" && <p className="px-4 py-3 text-[15px] text-label-2">O valor é digitado na proposta.</p>}
+        {l.modo === "aberto" && (
+          <>
+            <p className="px-4 py-3 text-[15px] text-label-2">O valor é digitado na proposta. Com teto, já vem com o máximo pela renda do cliente.</p>
+            <div className="grid grid-cols-2 divide-x divide-separator">
+              <Field label="Máx. por parcela (% da renda)" inputMode="decimal" placeholder="Ex.: 28" value={l.tetoRenda} onChange={(e) => alterar({ tetoRenda: pctCampo(e.target.value) })} />
+              <Field label="Máx. no total (% do imóvel)" inputMode="decimal" placeholder="Opcional" value={l.tetoImovel} onChange={(e) => alterar({ tetoImovel: pctCampo(e.target.value) })} />
+            </div>
+            <Toggle label="Fecha a conta (fica com a diferença)" name={`completa-${l.key}`} checked={l.completa} onChange={(completa) => alterar({ completa })} />
+          </>
+        )}
         {qtd > 1 && <SelectField label="Frequência" value={l.intervalo} onChange={(e) => alterar({ intervalo: e.target.value })} options={intervalos} />}
         <Toggle label="Sem data definida" name={`semdata-${l.key}`} checked={l.semData} onChange={(semData) => alterar({ semData, prazo: semData ? l.prazo : l.prazo || "0" })} />
         {!l.semData && (
@@ -194,6 +229,7 @@ function EditorLinha({
             onChange={(e) => alterar({ prazo: e.target.value.replace(/\D/g, "").slice(0, 3) })}
           />
         )}
+        {!l.semData && <SelectField label="Vencer sempre no mês" value={l.mesFixo} onChange={(e) => alterar({ mesFixo: e.target.value })} options={OPCOES_MES} />}
       </FieldGroup>
       <p className="px-4 text-[13px] text-label-2">{qtd >= 1 ? resumoSerieModelo(paraSerie(l)) : "Informe a quantidade de parcelas."}</p>
     </div>
@@ -206,7 +242,7 @@ export function ModeloEditor({
   modelo,
 }: {
   construtoraId: string;
-  modelo?: { id: string; nome: string; descricao: string | null; series: SerieModelo[] };
+  modelo?: { id: string; nome: string; descricao: string | null; series: SerieModelo[]; regras?: RegrasModelo };
 }) {
   const [linhas, setLinhas] = useState<Record<GrupoSerie, Linha[]>>(() => ({
     entrada: (modelo?.series ?? []).filter((s) => GRUPO_SERIE[s.tipo] === "entrada").map(paraLinha),
@@ -232,6 +268,22 @@ export function ModeloEditor({
           placeholder="Ex.: Ato em até 3x no cartão; mensais começam 30 dias após a assinatura."
           defaultValue={modelo?.descricao ?? undefined}
         />
+        <div className="grid grid-cols-2 divide-x divide-separator">
+          <Field
+            label="Desconto no financiamento (%)"
+            name="desconto_financiamento_percentual"
+            inputMode="decimal"
+            placeholder="Ex.: 1,5 (INCC)"
+            defaultValue={modelo?.regras?.desconto_financiamento_percentual?.toString().replace(".", ",")}
+          />
+          <Field
+            label="Parcela após a entrega (% da renda)"
+            name="parcela_pos_entrega_percentual_renda"
+            inputMode="decimal"
+            placeholder="Ex.: 30"
+            defaultValue={modelo?.regras?.parcela_pos_entrega_percentual_renda?.toString().replace(".", ",")}
+          />
+        </div>
       </FieldGroup>
 
       {GRUPOS.map((g) => {

@@ -1,4 +1,4 @@
-import { LogOut, MessageCircle } from "lucide-react";
+import { Download, FileText, LogOut, MessageCircle } from "lucide-react";
 import { ResumoPlano } from "@/components/resumo-plano";
 import { dadosPortal, infoPortal, resumoDaVenda, type DocumentoPortal } from "@/lib/portal";
 import { PASTAS, tamanhoLegivel } from "@/lib/documentos";
@@ -16,9 +16,17 @@ function Tela({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-xl px-4 py-8 sm:py-12">{children}</main>;
 }
 
-function Cabecalho({ empresa }: { empresa: string }) {
+/** Logo da empresa (rota same-origin /api/logo/...). Só caminhos locais. */
+function Logo({ url, empresa, className }: { url: string | null; empresa: string; className?: string }) {
+  if (!url || !url.startsWith("/") || url.startsWith("//")) return null;
+  // eslint-disable-next-line @next/next/no-img-element -- logo servido por rota própria, tamanho pequeno
+  return <img src={url} alt={empresa} className={`max-h-10 w-auto max-w-[200px] object-contain ${className ?? ""}`} />;
+}
+
+function Cabecalho({ empresa, logo }: { empresa: string; logo: string | null }) {
   return (
     <div className="mb-6 text-center">
+      <Logo url={logo} empresa={empresa} className="mx-auto mb-3" />
       <div className="text-[12px] font-semibold tracking-wider text-[var(--accent)] uppercase">{empresa}</div>
       <h1 className="mt-1 text-[28px] font-bold tracking-tight">Portal do cliente</h1>
     </div>
@@ -40,10 +48,43 @@ const STATUS: Record<DocumentoPortal["status"], { texto: string; cls: string }> 
   recusado: { texto: "Recusado — envie de novo", cls: "bg-red-100 text-red-700" },
 };
 
+const ordem = (p: string) => (PASTAS as readonly string[]).indexOf(p) + 1 || 99;
+const ordenar = (docs: DocumentoPortal[]) => [...docs].sort((a, b) => ordem(a.pasta) - ordem(b.pasta) || b.criado_em.localeCompare(a.criado_em));
+
+/** Documentos que o corretor liberou: toque para abrir, ou baixe. */
+function DocumentosDoCorretor({ token, documentos }: { token: string; documentos: DocumentoPortal[] }) {
+  return (
+    <ul className="divide-y divide-neutral-100 overflow-hidden rounded-[24px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+      {ordenar(documentos).map((d) => {
+        const href = `/api/portal/${token}/documentos/${d.id}`;
+        return (
+          <li key={d.id} className="flex items-center">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-5 active:bg-neutral-50">
+              <FileText className="size-5 shrink-0 text-[var(--accent)]" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[16px] font-medium break-words">{d.nome}</div>
+                <div className="mt-0.5 text-[13px] text-neutral-500">
+                  {[d.pasta, tamanhoLegivel(d.tamanho_bytes), dataCurta(d.criado_em)].filter(Boolean).join(" · ")}
+                </div>
+              </div>
+            </a>
+            <a
+              href={`${href}?baixar=1`}
+              aria-label={`Baixar ${d.nome}`}
+              className="mr-2 flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--accent)] active:bg-neutral-100"
+            >
+              <Download className="size-5" />
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function ListaDocumentos({ documentos }: { documentos: DocumentoPortal[] }) {
   if (!documentos.length) return <p className="mt-4 px-1 text-center text-[15px] text-neutral-500">Você ainda não enviou documentos.</p>;
-  const ordem = (p: string) => ((PASTAS as readonly string[]).indexOf(p) + 1 || 99);
-  const lista = [...documentos].sort((a, b) => ordem(a.pasta) - ordem(b.pasta) || b.criado_em.localeCompare(a.criado_em));
+  const lista = ordenar(documentos);
   return (
     <ul className="mt-4 divide-y divide-neutral-100 overflow-hidden rounded-[24px] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
       {lista.map((d) => (
@@ -78,7 +119,7 @@ export default async function PortalPage({ params }: PageProps<"/portal/[token]"
   if (!dados)
     return (
       <Tela>
-        <Cabecalho empresa={info.empresa} />
+        <Cabecalho empresa={info.empresa} logo={info.logo_url} />
         {info.pergunta === "nenhuma" ? (
           <Aviso
             titulo="Cadastro incompleto"
@@ -99,12 +140,15 @@ export default async function PortalPage({ params }: PageProps<"/portal/[token]"
 
   const primeiroNome = dados.cliente.nome.trim().split(/\s+/)[0];
   const fone = dados.corretor.telefone?.replace(/\D/g, "");
+  const doCorretor = dados.documentos.filter((d) => d.enviado_por !== "cliente" && d.visivel);
+  const enviados = dados.documentos.filter((d) => d.enviado_por === "cliente");
   const whatsapp = fone ? `https://wa.me/${fone.startsWith("55") && fone.length > 11 ? fone : `55${fone}`}` : null;
 
   return (
     <Tela>
       <div className="mb-6 flex items-start justify-between gap-3">
         <div className="min-w-0">
+          <Logo url={dados.logo_url} empresa={dados.empresa} className="mb-3" />
           <div className="text-[12px] font-semibold tracking-wider text-[var(--accent)] uppercase">{dados.empresa}</div>
           <h1 className="mt-1 text-[28px] font-bold tracking-tight break-words">Olá, {primeiroNome}</h1>
         </div>
@@ -141,11 +185,19 @@ export default async function PortalPage({ params }: PageProps<"/portal/[token]"
         )}
       </div>
 
+      {doCorretor.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-1 px-1 text-[22px] font-bold tracking-tight">Do seu corretor</h2>
+          <p className="mb-4 px-1 text-[15px] text-neutral-600">Documentos que {dados.corretor.nome || "seu corretor"} compartilhou com você. Toque para abrir.</p>
+          <DocumentosDoCorretor token={token} documentos={doCorretor} />
+        </section>
+      )}
+
       <section className="mt-10">
-        <h2 className="mb-1 px-1 text-[22px] font-bold tracking-tight">Seus documentos</h2>
+        <h2 className="mb-1 px-1 text-[22px] font-bold tracking-tight">Enviados por você</h2>
         <p className="mb-4 px-1 text-[15px] text-neutral-600">Envie aqui os documentos que seu corretor pediu. Pode ser foto do celular.</p>
         <EnviarDocumentos token={token} />
-        <ListaDocumentos documentos={dados.documentos} />
+        <ListaDocumentos documentos={enviados} />
       </section>
 
       <footer className="mt-10 text-center text-[13px] text-neutral-500">Link válido até {dataCurta(dados.expira_em)}</footer>

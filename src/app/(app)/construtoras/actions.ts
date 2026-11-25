@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getContexto } from "@/lib/dal";
-import { TIPOS_SERIE, type SerieModelo, type TipoSerie } from "@/lib/plano";
+import { TIPOS_SERIE, mesmaConstrutora, type RegrasModelo, type SerieModelo, type TipoSerie } from "@/lib/plano";
 import type { EstadoForm } from "@/app/(auth)/actions";
 
 // Construtoras e modelos de plano de pagamento (entrada com a construtora + financiamento).
@@ -13,13 +13,6 @@ const texto = (form: FormData, campo: string) => String(form.get(campo) ?? "").t
 const uuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 /** Escapa curingas do ILIKE para comparar o nome exato. */
 const exato = (nome: string) => nome.replace(/[%_\\]/g, (c) => `\\${c}`);
-const normalizarNome = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
 
 const LIMITE_SERIES = 100;
 
@@ -96,6 +89,28 @@ export async function excluirConstrutora(id: string): Promise<EstadoForm> {
 const inteiroEntre = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 
 /** Valida as séries vindas do editor (JSON). Devolve as séries limpas ou a mensagem de erro. */
+/** % opcional: null se vazio, undefined se inválido. */
+function pctOuNulo(v: unknown, max: number): number | null | undefined {
+  if (v == null || v === "") return null;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v * 100) / 100 : undefined;
+}
+
+/** Regras do modelo inteiro (campos do formulário). */
+function lerRegras(form: FormData): RegrasModelo | { erro: string } {
+  const num = (campo: string) => {
+    const t = String(form.get(campo) ?? "").trim().replace(",", ".");
+    return t ? Number(t) : null;
+  };
+  const desconto = num("desconto_financiamento_percentual");
+  const posEntrega = num("parcela_pos_entrega_percentual_renda");
+  if (desconto != null && !(desconto >= 0 && desconto <= 20)) return { erro: "O desconto do financiamento deve ser de 0 a 20%." };
+  if (posEntrega != null && !(posEntrega > 0 && posEntrega <= 100)) return { erro: "A parcela após a entrega deve ser de 1 a 100% da renda." };
+  return {
+    ...(desconto ? { desconto_financiamento_percentual: Math.round(desconto * 100) / 100 } : {}),
+    ...(posEntrega ? { parcela_pos_entrega_percentual_renda: Math.round(posEntrega * 100) / 100 } : {}),
+  };
+}
+
 function lerSeries(bruto: string): { series: SerieModelo[] } | { erro: string } {
   let lista: unknown;
   try {
@@ -133,6 +148,13 @@ function lerSeries(bruto: string): { series: SerieModelo[] } | { erro: string } 
     const defasagem = s.defasagem_meses ?? null;
     if (defasagem != null && !inteiroEntre(defasagem, 0, 600)) return { erro: `${n}: o 1º vencimento deve ser de 0 a 600 meses após a venda.` };
 
+    const tetoRenda = pctOuNulo(s.teto_renda_percentual, 1000);
+    const tetoImovel = pctOuNulo(s.teto_imovel_percentual, 100);
+    if (tetoRenda === undefined) return { erro: `${n}: o máximo pela renda deve ser maior que 0%.` };
+    if (tetoImovel === undefined) return { erro: `${n}: o máximo pelo imóvel deve ser de 0 a 100%.` };
+    const mesFixo = s.mes_fixo ?? null;
+    if (mesFixo != null && !inteiroEntre(mesFixo, 1, 12)) return { erro: `${n}: mês fixo inválido.` };
+
     series.push({
       tipo,
       descricao,
@@ -141,6 +163,10 @@ function lerSeries(bruto: string): { series: SerieModelo[] } | { erro: string } 
       valor_parcela_centavos: valor as number | null,
       intervalo_meses: quantidade > 1 ? s.intervalo_meses : 0,
       defasagem_meses: defasagem as number | null,
+      ...(mesFixo != null && { mes_fixo: mesFixo as number }),
+      ...(tetoRenda != null && { teto_renda_percentual: tetoRenda }),
+      ...(tetoImovel != null && { teto_imovel_percentual: tetoImovel }),
+      ...(s.completa === true && { completa: true }),
     });
   }
 
@@ -164,7 +190,9 @@ export async function salvarModeloConstrutora(construtoraId: string, modeloId: s
   const { data: construtora } = await supabase.from("construtoras").select("id").eq("tenant_id", tenant.id).eq("id", construtoraId).maybeSingle();
   if (!construtora) return { erro: "Construtora não encontrada." };
 
-  const dados = { nome, descricao, series: lido.series };
+  const regras = lerRegras(form);
+  if ("erro" in regras) return { erro: regras.erro as string };
+  const dados = { nome, descricao, series: lido.series, regras };
   if (modeloId) {
     const { data, error } = await supabase
       .from("modelos_pagamento")
@@ -207,10 +235,10 @@ export async function copiarModeloSistema(construtoraId: string, modeloId: strin
   const { supabase, tenant } = await getContexto();
   const [{ data: construtora }, { data: modelo }] = await Promise.all([
     supabase.from("construtoras").select("id, nome").eq("tenant_id", tenant.id).eq("id", construtoraId).maybeSingle(),
-    supabase.from("modelos_pagamento").select("nome, descricao, series, construtora_nome").is("tenant_id", null).eq("id", modeloId).maybeSingle(),
+    supabase.from("modelos_pagamento").select("nome, descricao, series, regras, construtora_nome").is("tenant_id", null).eq("id", modeloId).maybeSingle(),
   ]);
   if (!construtora || !modelo) return { erro: "Modelo não encontrado." };
-  if (!modelo.construtora_nome || normalizarNome(modelo.construtora_nome) !== normalizarNome(construtora.nome)) {
+  if (!modelo.construtora_nome || !mesmaConstrutora(modelo.construtora_nome, construtora.nome)) {
     return { erro: "Este modelo não é desta construtora." };
   }
   // Revalida as séries: o que vai para a conta do corretor passa pelas mesmas regras do editor.
@@ -225,6 +253,7 @@ export async function copiarModeloSistema(construtoraId: string, modeloId: strin
       nome: modelo.nome,
       descricao: modelo.descricao,
       series: lido.series,
+      regras: modelo.regras,
     })
     .select("id")
     .single();

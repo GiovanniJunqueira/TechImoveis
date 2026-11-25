@@ -71,6 +71,8 @@ export type Serie = {
   valor_total_centavos: number;
   primeiro_vencimento: string | null;
   intervalo_meses: number;
+  teto_renda_percentual?: number | null; // máximo de CADA parcela, em % da renda
+  teto_imovel_percentual?: number | null; // máximo da SÉRIE inteira, em % do imóvel
 };
 
 /**
@@ -86,7 +88,48 @@ export type SerieModelo = {
   valor_parcela_centavos?: number | null; // valor fixo de cada parcela
   intervalo_meses: number;
   defasagem_meses: number | null; // meses entre a venda e o 1º vencimento (null = sem data)
+  mes_fixo?: number | null; // 1-12: vence sempre neste mês (ex.: anuais em dezembro)
+  teto_renda_percentual?: number | null;
+  teto_imovel_percentual?: number | null;
+  completa?: boolean; // linha que fecha a conta (fica com a diferença para o valor da venda)
 };
+
+/** Regras do modelo inteiro (ex.: Vibra desconta 1,5% do financiamento para o INCC). */
+export type RegrasModelo = {
+  desconto_financiamento_percentual?: number | null;
+  parcela_pos_entrega_percentual_renda?: number | null;
+};
+
+/**
+ * Valor máximo de cada parcela pelos tetos da série (renda e/ou imóvel), em centavos.
+ * Nulo se a série não tem teto ou se falta a renda para calcular.
+ */
+export function maximoParcela(
+  s: { quantidade: number; teto_renda_percentual?: number | null; teto_imovel_percentual?: number | null },
+  renda: number | null,
+  valorVenda: number,
+) {
+  const limites: number[] = [];
+  if (s.teto_renda_percentual && renda) limites.push(Math.round((renda * s.teto_renda_percentual) / 100));
+  if (s.teto_imovel_percentual && s.quantidade > 0) limites.push(Math.floor((valorVenda * s.teto_imovel_percentual) / 100 / s.quantidade));
+  return limites.length ? Math.min(...limites) : null;
+}
+
+/** Arredonda para baixo em reais inteiros (como as tabelas das construtoras). */
+export const reaisInteiros = (centavos: number) => Math.floor(centavos / 100) * 100;
+
+/** Financiamento líquido: aprovado pelo banco menos o desconto (ex.: 1,5% do INCC). */
+export const financiamentoLiquido = (aprovado: number, descontoPct: number | null | undefined) =>
+  Math.round(aprovado * (1 - (descontoPct ?? 0) / 100));
+
+/** 1º vencimento de uma série do modelo: data da venda + defasagem, empurrada para o mês fixo. */
+function vencimentoModelo(m: SerieModelo, dataVenda: string) {
+  if (m.defasagem_meses == null) return null;
+  const base = somarMeses(dataVenda, m.defasagem_meses);
+  if (!m.mes_fixo) return base;
+  const mes = Number(base.slice(5, 7));
+  return somarMeses(base, (m.mes_fixo - mes + 12) % 12);
+}
 
 /** Soma por grupo (entrada x banco). */
 export function totaisPorGrupo(series: Pick<Serie, "tipo" | "valor_total_centavos">[]) {
@@ -144,28 +187,39 @@ export function seriesParaModelo(series: Serie[], valorVenda: number, dataVenda:
     tipo: s.tipo,
     descricao: s.descricao,
     quantidade: s.quantidade,
-    percentual: Math.round((s.valor_total_centavos / valorVenda) * 1_000_000) / 10_000,
+    // Série com teto pela renda volta a ser calculada pela renda do próximo cliente, não por %.
+    percentual: s.teto_renda_percentual ? null : Math.round((s.valor_total_centavos / valorVenda) * 1_000_000) / 10_000,
     intervalo_meses: s.intervalo_meses,
     defasagem_meses: s.primeiro_vencimento ? Math.max(mesesEntre(dataVenda, s.primeiro_vencimento), 0) : null,
+    teto_renda_percentual: s.teto_renda_percentual ?? null,
+    teto_imovel_percentual: s.teto_imovel_percentual ?? null,
   }));
 }
 
 /** Aplica um modelo a uma venda: valores pelo percentual, datas a partir da data da venda. */
-export function modeloParaSeries(modelo: SerieModelo[], valorVenda: number, dataVenda: string) {
-  const series = modelo.map((m, ordem) => ({
-    tipo: m.tipo,
-    descricao: m.descricao,
-    quantidade: m.quantidade,
-    valor_total_centavos:
-      m.percentual != null
-        ? Math.round((valorVenda * m.percentual) / 100)
-        : m.valor_parcela_centavos
-          ? m.valor_parcela_centavos * m.quantidade
-          : 0, // em aberto: o corretor digita o valor na proposta
-    primeiro_vencimento: m.defasagem_meses == null ? null : somarMeses(dataVenda, m.defasagem_meses),
-    intervalo_meses: m.intervalo_meses,
-    ordem,
-  }));
+export function modeloParaSeries(modelo: SerieModelo[], valorVenda: number, dataVenda: string, renda: number | null = null) {
+  const series = modelo.map((m, ordem) => {
+    // Série com teto e sem valor definido: já entra com o máximo permitido (em reais inteiros).
+    const maximo = maximoParcela(m, renda, valorVenda);
+    return {
+      tipo: m.tipo,
+      descricao: m.descricao,
+      quantidade: m.quantidade,
+      valor_total_centavos:
+        m.percentual != null
+          ? Math.round((valorVenda * m.percentual) / 100)
+          : m.valor_parcela_centavos
+            ? m.valor_parcela_centavos * m.quantidade
+            : maximo != null
+              ? reaisInteiros(maximo) * m.quantidade
+              : 0, // em aberto: o corretor digita o valor na proposta
+      primeiro_vencimento: vencimentoModelo(m, dataVenda),
+      intervalo_meses: m.intervalo_meses,
+      teto_renda_percentual: m.teto_renda_percentual ?? null,
+      teto_imovel_percentual: m.teto_imovel_percentual ?? null,
+      ordem,
+    };
+  });
   // Modelo que fecha 100%: a sobra do arredondamento vai para a última série, para o plano bater com a venda.
   const pct = modelo.reduce((s, m) => s + (m.percentual ?? 0), 0);
   if (series.length && modelo.every((m) => m.percentual != null) && Math.abs(pct - 100) < 0.01) series[series.length - 1].valor_total_centavos += valorVenda - totalPlano(series);
@@ -176,6 +230,16 @@ export function modeloParaSeries(modelo: SerieModelo[], valorVenda: number, data
 /** Nome comparável: sem acento, minúsculo e sem espaços sobrando (ex.: "MRV  Engenharia" = "mrv engenharia"). */
 export function normalizarNome(nome: string) {
   return nome.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Mesma construtora pelo nome, tolerando sufixos: "Vibra" casa com "Vibra Residencial",
+ * "MRV" com "MRV Engenharia". Sem acento e sem diferença de maiúsculas.
+ */
+export function mesmaConstrutora(a: string, b: string) {
+  const x = normalizarNome(a);
+  const y = normalizarNome(b);
+  return x === y || x.startsWith(`${y} `) || y.startsWith(`${x} `);
 }
 
 /** Sugestões para o banco do financiamento. */
@@ -194,7 +258,11 @@ export type LinhaPlano = {
   valor_parcela_centavos: number;
   primeiro_vencimento: string | null;
   intervalo_meses: number;
+  teto_renda_percentual: number | null;
+  teto_imovel_percentual: number | null;
 };
+
+const pctOpcional = (v: unknown, max: number) => (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v * 100) / 100 : null);
 
 const dataISOValida = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && v >= "1990-01-01" && v <= "2100-12-31";
 const MAX_LINHAS = 60;
@@ -229,7 +297,16 @@ export function validarLinhasPlano(bruto: unknown): { erro: string } | { linhas:
     if (typeof intervalo !== "number" || !Number.isInteger(intervalo) || intervalo < 0 || intervalo > 60)
       return { erro: `${nome}: frequência inválida.` };
     if (quantidade > 1 && intervalo === 0) return { erro: `${nome}: escolha a frequência das parcelas.` };
-    linhas.push({ tipo, descricao, quantidade, valor_parcela_centavos: valor, primeiro_vencimento: primeiro, intervalo_meses: intervalo });
+    linhas.push({
+      tipo,
+      descricao,
+      quantidade,
+      valor_parcela_centavos: valor,
+      primeiro_vencimento: primeiro,
+      intervalo_meses: intervalo,
+      teto_renda_percentual: pctOpcional(l.teto_renda_percentual, 1000),
+      teto_imovel_percentual: pctOpcional(l.teto_imovel_percentual, 100),
+    });
   }
   return { linhas };
 }

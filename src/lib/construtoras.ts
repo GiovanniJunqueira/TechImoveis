@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getContexto } from "@/lib/dal";
-import type { SerieModelo } from "@/lib/plano";
+import { mesmaConstrutora, type RegrasModelo, type SerieModelo } from "@/lib/plano";
 
 // Construtoras do tenant e os modelos de plano de pagamento de cada uma.
 // Modelos do sistema (tenant_id nulo) valem para todos e se ligam à construtora pelo nome.
@@ -23,16 +23,18 @@ export type ModeloResumo = {
   nome: string;
   descricao: string | null;
   series: SerieModelo[];
+  regras: RegrasModelo;
   sistema: boolean;
   atualizadoEm: string;
 };
 
-type LinhaModelo = { id: string; nome: string; descricao: string | null; series: unknown; tenant_id: string | null; atualizado_em: string };
+type LinhaModelo = { id: string; nome: string; descricao: string | null; series: unknown; regras: unknown; tenant_id: string | null; atualizado_em: string };
 const paraResumo = (m: LinhaModelo): ModeloResumo => ({
   id: m.id,
   nome: m.nome,
   descricao: m.descricao,
   series: Array.isArray(m.series) ? (m.series as SerieModelo[]) : [],
+  regras: (m.regras && typeof m.regras === "object" ? m.regras : {}) as RegrasModelo,
   sistema: m.tenant_id == null,
   atualizadoEm: m.atualizado_em,
 });
@@ -64,7 +66,7 @@ export const listarConstrutoras = cache(async (): Promise<ConstrutoraLista[]> =>
     id: c.id,
     nome: c.nome,
     cnpj: c.cnpj,
-    modelos: (c.modelos_pagamento[0]?.count ?? 0) + (sistema.get(normalizarNome(c.nome)) ?? 0),
+    modelos: (c.modelos_pagamento[0]?.count ?? 0) + [...sistema].reduce((t, [k, n]) => t + (mesmaConstrutora(k, c.nome) ? n : 0), 0),
   }));
 });
 
@@ -81,21 +83,20 @@ export const obterConstrutora = cache(async (id: string) => {
   if (error) throw error;
   if (!c) notFound();
 
-  const campos = "id, nome, descricao, series, tenant_id, atualizado_em, construtora_nome";
+  const campos = "id, nome, descricao, series, regras, tenant_id, atualizado_em, construtora_nome";
   const [proprios, sistema] = await Promise.all([
     supabase.from("modelos_pagamento").select(campos).eq("tenant_id", tenant.id).eq("construtora_id", id).order("nome"),
     supabase.from("modelos_pagamento").select(campos).is("tenant_id", null).order("nome"),
   ]);
   if (proprios.error) throw proprios.error;
   if (sistema.error) throw sistema.error;
-  const nome = normalizarNome(c.nome);
 
   const { vendas, ...dados } = c;
   return {
     ...dados,
     vendas: vendas[0]?.count ?? 0,
     modelos: proprios.data.map(paraResumo),
-    modelosSistema: sistema.data.filter((m) => m.construtora_nome && normalizarNome(m.construtora_nome) === nome).map(paraResumo),
+    modelosSistema: sistema.data.filter((m) => m.construtora_nome && mesmaConstrutora(m.construtora_nome, c.nome)).map(paraResumo),
   };
 });
 export type ConstrutoraCompleta = Awaited<ReturnType<typeof obterConstrutora>>;

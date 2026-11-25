@@ -37,6 +37,9 @@ export default async function MontarPlanoPage({ params }: PageProps<"/vendas/[id
         construtora={v.construtora?.nome ?? null}
         seriesAtuais={v.plano_series}
         modelos={modelos}
+        renda={v.renda_centavos ?? v.cliente?.renda_centavos ?? null}
+        aprovado={v.financiamento_aprovado_centavos}
+        desconto={v.desconto_financiamento_percentual}
       />
     </div>
   );

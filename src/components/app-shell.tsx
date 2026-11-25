@@ -24,7 +24,16 @@ const iniciais = (nome: string) =>
     .map((p) => p[0]!.toUpperCase())
     .join("");
 
-export function AppShell({ children, usuario }: { children: ReactNode; usuario: { nome: string; creci: string | null } }) {
+export function AppShell({
+  children,
+  usuario,
+  empresa,
+}: {
+  children: ReactNode;
+  usuario: { nome: string; creci: string | null };
+  /** Marca do corretor: com logo, aparece no lugar da marca do Tech Imóveis. */
+  empresa?: { nome: string; logoUrl: string | null };
+}) {
   const pathname = usePathname();
   const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -34,8 +43,18 @@ export function AppShell({ children, usuario }: { children: ReactNode; usuario: 
         {/* Barra lateral (computador) */}
         <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-white/[0.06] px-4 py-8 md:flex">
           <div className="mb-10 flex items-center gap-3 px-3">
-            <span className="grid size-9 place-items-center rounded-[11px] bg-accent text-[15px] font-bold text-white">TI</span>
-            <span className="text-[17px] font-semibold tracking-[-0.01em]">Tech Imóveis</span>
+            {empresa?.logoUrl ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={empresa.logoUrl} alt="" className="size-9 shrink-0 rounded-[11px] bg-white/5 object-contain" />
+                <span className="truncate text-[17px] font-semibold tracking-[-0.01em]">{empresa.nome}</span>
+              </>
+            ) : (
+              <>
+                <span className="grid size-9 place-items-center rounded-[11px] bg-accent text-[15px] font-bold text-white">TI</span>
+                <span className="text-[17px] font-semibold tracking-[-0.01em]">Tech Imóveis</span>
+              </>
+            )}
           </div>
           <nav className="flex flex-col gap-1">
             {NAV.map(({ href, label, icon: Icon }) => (

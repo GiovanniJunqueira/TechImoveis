@@ -80,6 +80,16 @@ export async function salvarPlano(vendaId: string, _: EstadoForm, form: FormData
   const validado = validarLinhasPlano(bruto);
   if ("erro" in validado) return { erro: validado.erro };
   const banco = texto(form, "banco").slice(0, 60) || null;
+  // Dados da proposta usados nos tetos (renda) e no financiamento líquido (aprovado - desconto).
+  const centavos = (campo: string) => {
+    const v = inteiro(texto(form, campo));
+    return Number.isFinite(v) && v > 0 && v < 1e13 ? v : null;
+  };
+  const renda = centavos("renda");
+  const aprovado = centavos("financiamento_aprovado");
+  const descontoTxt = texto(form, "desconto_financiamento").replace(",", ".");
+  const desconto = descontoTxt ? Number(descontoTxt) : null;
+  if (desconto != null && !(desconto >= 0 && desconto <= 20)) return { erro: "O desconto do financiamento deve ser de 0 a 20%." };
 
   const { supabase, tenant, venda } = await vendaDoTenant(vendaId);
   if (!venda) return { erro: "Venda não encontrada." };
@@ -96,6 +106,8 @@ export async function salvarPlano(vendaId: string, _: EstadoForm, form: FormData
       valor_total_centavos: l.valor_parcela_centavos * l.quantidade,
       primeiro_vencimento: l.primeiro_vencimento,
       intervalo_meses: l.intervalo_meses,
+      teto_renda_percentual: l.teto_renda_percentual,
+      teto_imovel_percentual: l.teto_imovel_percentual,
       ordem,
     })),
   );
@@ -111,7 +123,11 @@ export async function salvarPlano(vendaId: string, _: EstadoForm, form: FormData
       );
     if (erroApagar) return { erro: "O plano novo foi salvo, mas o antigo não foi apagado. Confira a venda e exclua as linhas repetidas." };
   }
-  await supabase.from("vendas").update({ banco_financiamento: banco }).eq("tenant_id", tenant.id).eq("id", vendaId);
+  await supabase
+    .from("vendas")
+    .update({ banco_financiamento: banco, renda_centavos: renda, financiamento_aprovado_centavos: aprovado, desconto_financiamento_percentual: aprovado ? desconto : null })
+    .eq("tenant_id", tenant.id)
+    .eq("id", vendaId);
   revalidatePath(`/vendas/${vendaId}`, "layout");
   redirect(`/vendas/${vendaId}`);
 }
@@ -134,7 +150,7 @@ export async function salvarModelo(vendaId: string, _: EstadoForm, form: FormDat
   if (!venda) return { erro: "Venda não encontrada." };
   const { data: series } = await supabase
     .from("plano_series")
-    .select("id, tipo, descricao, quantidade, valor_total_centavos, primeiro_vencimento, intervalo_meses")
+    .select("id, tipo, descricao, quantidade, valor_total_centavos, primeiro_vencimento, intervalo_meses, teto_renda_percentual, teto_imovel_percentual")
     .eq("tenant_id", tenant.id)
     .eq("venda_id", vendaId)
     .order("ordem");

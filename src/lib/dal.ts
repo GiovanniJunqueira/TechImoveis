@@ -3,7 +3,7 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hojeISO, type StatusComissao, type Venda } from "@/lib/vendas";
-import { normalizarNome, type SerieModelo } from "@/lib/plano";
+import { mesmaConstrutora, normalizarNome, type RegrasModelo, type SerieModelo } from "@/lib/plano";
 
 /** Usuário logado, perfil e tenant. Redireciona para /entrar se não houver sessão. */
 export const getContexto = cache(async () => {
@@ -137,7 +137,7 @@ export const obterCliente = cache(async (id: string) => {
     listarVendas(),
     supabase
       .from("documentos")
-      .select("id, nome, pasta, status, enviado_por, criado_em, mime, tamanho_bytes")
+      .select("id, nome, pasta, status, enviado_por, visivel_cliente, criado_em, mime, tamanho_bytes")
       .eq("tenant_id", tenant.id)
       .eq("cliente_id", id)
       .order("criado_em", { ascending: false }),
@@ -154,12 +154,13 @@ export const obterVenda = cache(async (id: string) => {
     .from("vendas")
     .select(
       `id, tipo, status, unidade, construtora_id, imovel_descricao, valor_venda_centavos, data_venda, comissao_percentual, comissao_centavos, observacoes, banco_financiamento,
-       cliente:clientes(id, nome, telefone),
+       renda_centavos, financiamento_aprovado_centavos, desconto_financiamento_percentual,
+       cliente:clientes(id, nome, telefone, renda_centavos),
        empreendimento:empreendimentos(nome),
        construtora:construtoras(nome),
        imobiliaria:imobiliarias(nome),
        recebimentos(id, pagador_tipo, pagador_nome, valor_previsto_centavos, data_prevista, valor_recebido_centavos, data_recebida, forma),
-       plano_series(id, tipo, descricao, quantidade, valor_total_centavos, primeiro_vencimento, intervalo_meses, ordem, criado_em)`,
+       plano_series(id, tipo, descricao, quantidade, valor_total_centavos, primeiro_vencimento, intervalo_meses, teto_renda_percentual, teto_imovel_percentual, ordem, criado_em)`,
     )
     .eq("tenant_id", tenant.id)
     .eq("id", id)
@@ -184,11 +185,11 @@ export const listarModelos = cache(async (construtoraId: string | null, construt
   const [doTenant, doSistema] = await Promise.all([
     supabase
       .from("modelos_pagamento")
-      .select("id, nome, descricao, construtora_id, series, construtora:construtoras(nome)")
+      .select("id, nome, descricao, construtora_id, series, regras, construtora:construtoras(nome)")
       .eq("tenant_id", tenant.id)
       .order("nome"),
     alvo
-      ? supabase.from("modelos_pagamento").select("id, nome, descricao, construtora_nome, series").is("tenant_id", null).not("construtora_nome", "is", null).order("nome")
+      ? supabase.from("modelos_pagamento").select("id, nome, descricao, construtora_nome, series, regras").is("tenant_id", null).not("construtora_nome", "is", null).order("nome")
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (doTenant.error) throw doTenant.error;
@@ -202,9 +203,10 @@ export const listarModelos = cache(async (construtoraId: string | null, construt
       daConstrutora: construtoraId != null && m.construtora_id === construtoraId,
       sistema: false,
       series: m.series as unknown as SerieModelo[],
+      regras: (m.regras ?? {}) as RegrasModelo,
     })),
     ...(doSistema.data ?? [])
-      .filter((m) => m.construtora_nome && normalizarNome(m.construtora_nome) === alvo)
+      .filter((m) => m.construtora_nome && alvo && mesmaConstrutora(m.construtora_nome, alvo))
       .map((m) => ({
         id: m.id,
         nome: m.nome,
@@ -213,6 +215,7 @@ export const listarModelos = cache(async (construtoraId: string | null, construt
         daConstrutora: true,
         sistema: true,
         series: m.series as unknown as SerieModelo[],
+        regras: (m.regras ?? {}) as RegrasModelo,
       })),
   ];
   // Da construtora primeiro (os do corretor antes dos do sistema); a ordem por nome se mantém.

@@ -18,7 +18,10 @@ import {
   PADRAO_SERIE,
   TIPOS_POR_GRUPO,
   TIPO_SERIE_LABEL,
+  financiamentoLiquido,
+  maximoParcela,
   modeloParaSeries,
+  reaisInteiros,
   type GrupoSerie,
   type LinhaPlano,
   type Serie,
@@ -35,6 +38,9 @@ type Linha = {
   vencimento: string; // "" = sem data
   intervalo: number;
   emAberto: boolean; // veio do modelo sem valor: o corretor precisa digitar
+  tetoRenda: number | null; // máx. de cada parcela em % da renda
+  tetoImovel: number | null; // máx. da série em % do imóvel
+  completa: boolean; // fica com a diferença ao "completar"
 };
 
 let seq = 0;
@@ -56,6 +62,9 @@ function linhaNova(tipo: TipoSerie, hoje: string, valor = 0): Linha {
     vencimento: semData && padrao.quantidade === 1 ? "" : hoje,
     intervalo: padrao.intervalo || 1,
     emAberto: false,
+    tetoRenda: null,
+    tetoImovel: null,
+    completa: false,
   };
 }
 
@@ -69,10 +78,13 @@ const deSeries = (series: Serie[]): Linha[] =>
     vencimento: s.primeiro_vencimento ?? "",
     intervalo: s.intervalo_meses || PADRAO_SERIE[s.tipo].intervalo || 1,
     emAberto: false,
+    tetoRenda: s.teto_renda_percentual ?? null,
+    tetoImovel: s.teto_imovel_percentual ?? null,
+    completa: false,
   }));
 
-function deModelo(m: Modelo, valorVenda: number, dataVenda: string): Linha[] {
-  return modeloParaSeries(m.series, valorVenda, dataVenda).map((s, i) => {
+function deModelo(m: Modelo, valorVenda: number, dataVenda: string, renda: number | null): Linha[] {
+  return modeloParaSeries(m.series, valorVenda, dataVenda, renda).map((s, i) => {
     const origem = m.series[i];
     return {
       chave: novaChave(),
@@ -83,6 +95,9 @@ function deModelo(m: Modelo, valorVenda: number, dataVenda: string): Linha[] {
       vencimento: s.primeiro_vencimento ?? "",
       intervalo: s.intervalo_meses || PADRAO_SERIE[s.tipo].intervalo || 1,
       emAberto: origem.percentual == null && !origem.valor_parcela_centavos,
+      tetoRenda: origem.teto_renda_percentual ?? null,
+      tetoImovel: origem.teto_imovel_percentual ?? null,
+      completa: origem.completa === true,
     };
   });
 }
@@ -94,10 +109,37 @@ const paraEnvio = (l: Linha): LinhaPlano => ({
   valor_parcela_centavos: l.valor,
   primeiro_vencimento: l.vencimento || null,
   intervalo_meses: qtdDe(l) > 1 ? l.intervalo : 0,
+  teto_renda_percentual: l.tetoRenda,
+  teto_imovel_percentual: l.tetoImovel,
 });
 
-function EditorLinha({ l, grupo, aoMudar, aoRemover }: { l: Linha; grupo: GrupoSerie; aoMudar: (p: Partial<Linha>) => void; aoRemover: () => void }) {
+const pctTexto = (n: number) => `${String(n).replace(".", ",")}%`;
+
+/** Teto da linha: "máx. R$ 2.126,26 por parcela (28% da renda)" e se o valor passou dele. */
+function tetoDe(l: Linha, renda: number, valorVenda: number) {
+  if (!l.tetoRenda && !l.tetoImovel) return null;
+  const maximo = maximoParcela({ quantidade: qtdDe(l), teto_renda_percentual: l.tetoRenda, teto_imovel_percentual: l.tetoImovel }, renda || null, valorVenda);
+  const regras = [l.tetoRenda && `${pctTexto(l.tetoRenda)} da renda`, l.tetoImovel && `${pctTexto(l.tetoImovel)} do imóvel no total`].filter(Boolean).join(" ou ");
+  return { maximo, regras, acima: maximo != null && l.valor > maximo, faltaRenda: !!l.tetoRenda && !renda };
+}
+
+function EditorLinha({
+  l,
+  grupo,
+  renda,
+  valorVenda,
+  aoMudar,
+  aoRemover,
+}: {
+  l: Linha;
+  grupo: GrupoSerie;
+  renda: number;
+  valorVenda: number;
+  aoMudar: (p: Partial<Linha>) => void;
+  aoRemover: () => void;
+}) {
   const qtd = qtdDe(l);
+  const teto = tetoDe(l, renda, valorVenda);
   const pendente = l.valor === 0;
   const destacar = pendente && l.emAberto;
   const intervalos = INTERVALOS.some((i) => i.value === String(l.intervalo))
@@ -109,6 +151,7 @@ function EditorLinha({ l, grupo, aoMudar, aoRemover }: { l: Linha; grupo: GrupoS
       className={cn(
         "divide-y divide-separator overflow-hidden rounded-[18px] border border-white/[0.06] bg-surface transition-colors",
         destacar && "border-pending/70 bg-pending/[0.06]",
+        teto?.acima && "border-negative/70 bg-negative/[0.06]",
       )}
     >
       <div className="flex items-center gap-2 py-2 pr-1.5 pl-4">
@@ -116,6 +159,7 @@ function EditorLinha({ l, grupo, aoMudar, aoRemover }: { l: Linha; grupo: GrupoS
           <div className="flex items-center gap-2">
             <span className="truncate text-[15px] font-semibold">{l.descricao.trim() || TIPO_SERIE_LABEL[l.tipo]}</span>
             {destacar && <Badge tone="pending">Preencher valor</Badge>}
+            {teto?.acima && <Badge tone="negative">Acima do máximo</Badge>}
           </div>
           <div className="text-[13px] text-label-2 tabular-nums">
             {qtd > 1 && l.valor > 0 ? (
@@ -159,6 +203,26 @@ function EditorLinha({ l, grupo, aoMudar, aoRemover }: { l: Linha; grupo: GrupoS
       <Field label="Descrição (opcional)" value={l.descricao} placeholder={TIPO_SERIE_LABEL[l.tipo]} maxLength={80} autoComplete="off" onChange={(e) => aoMudar({ descricao: e.target.value })} />
       {/* Campo em digitação fica visível mesmo com "ocultar valores": o corretor precisa ver o que digita. */}
       <MoneyField label={qtd > 1 ? "Valor de cada parcela" : "Valor"} name="valor_parcela" value={l.valor} onChange={(valor) => aoMudar({ valor })} />
+      {teto && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2 text-[13px]">
+          <span className={cn("tabular-nums", teto.acima ? "text-negative" : "text-label-2")}>
+            {teto.maximo != null ? (
+              <>
+                Máx. <span className="sensivel">{brl(teto.maximo)}</span> por parcela ({teto.regras})
+              </>
+            ) : teto.faltaRenda ? (
+              `Máx. ${teto.regras}: informe a renda`
+            ) : (
+              `Máx. ${teto.regras}`
+            )}
+          </span>
+          {teto.maximo != null && l.valor !== reaisInteiros(teto.maximo) && (
+            <button type="button" onClick={() => aoMudar({ valor: reaisInteiros(teto.maximo!), emAberto: false })} className="shrink-0 font-medium text-accent">
+              Usar o máximo
+            </button>
+          )}
+        </div>
+      )}
       <div className={cn("grid divide-x divide-separator", qtd > 1 ? "grid-cols-2" : "grid-cols-1")}>
         <Field
           label={qtd > 1 ? "1º vencimento" : "Vencimento (opcional)"}
@@ -169,6 +233,40 @@ function EditorLinha({ l, grupo, aoMudar, aoRemover }: { l: Linha; grupo: GrupoS
         />
         {qtd > 1 && <SelectField label="Frequência" value={String(l.intervalo)} onChange={(e) => aoMudar({ intervalo: Number(e.target.value) })} options={intervalos} />}
       </div>
+    </div>
+  );
+}
+
+function FinanciamentoCampos({
+  aprovado,
+  desconto,
+  aoMudar,
+}: {
+  aprovado: number;
+  desconto: string;
+  aoMudar: (aprovado: number, desconto: string) => void;
+}) {
+  const pctDesconto = Number(desconto.replace(",", ".")) || 0;
+  const liquido = financiamentoLiquido(aprovado, pctDesconto);
+  return (
+    <div className="mb-3 divide-y divide-separator overflow-hidden rounded-[18px] border border-white/[0.06] bg-surface">
+      <div className="grid grid-cols-[1fr_110px] divide-x divide-separator">
+        <MoneyField label="Valor aprovado pelo banco" name="financiamento_aprovado" value={aprovado} onChange={(v) => aoMudar(v, desconto)} />
+        <Field
+          label="Desconto (%)"
+          name="desconto_financiamento"
+          inputMode="decimal"
+          value={desconto}
+          placeholder="0"
+          onChange={(e) => aoMudar(aprovado, e.target.value.replace(/[^\d,.]/g, "").slice(0, 5))}
+        />
+      </div>
+      {aprovado > 0 && (
+        <div className="flex items-baseline justify-between gap-3 px-4 py-2.5 text-[14px]">
+          <span className="text-label-2">{pctDesconto > 0 ? `Financiamento líquido (− ${pctTexto(pctDesconto)} do INCC)` : "Financiamento"}</span>
+          <span className="sensivel font-semibold tabular-nums">{brl(liquido)}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -308,7 +406,13 @@ export function EditorPlano({
   construtora,
   seriesAtuais,
   modelos,
+  renda: rendaInicial,
+  aprovado: aprovadoInicial,
+  desconto: descontoInicial,
 }: {
+  renda: number | null;
+  aprovado: number | null;
+  desconto: number | null;
   vendaId: string;
   valorVenda: number;
   dataVenda: string;
@@ -323,6 +427,11 @@ export function EditorPlano({
   const [escolhendo, setEscolhendo] = useState(seriesAtuais.length === 0);
   const [banco, setBanco] = useState(bancoInicial ?? "");
   const [aviso, setAviso] = useState<string>();
+  const [renda, setRenda] = useState(rendaInicial ?? 0);
+  const [aprovado, setAprovado] = useState(aprovadoInicial ?? 0);
+  const [desconto, setDesconto] = useState(descontoInicial != null ? String(descontoInicial).replace(".", ",") : "");
+  const comTeto = linhas.filter((l) => l.tetoRenda || l.tetoImovel);
+  const posEntrega = modelo?.regras.parcela_pos_entrega_percentual_renda;
   const [estado, acao, salvando] = useActionState<EstadoForm, FormData>(salvarPlano.bind(null, vendaId), {});
 
   const doGrupo = (g: GrupoSerie) => linhas.filter((l) => GRUPO_SERIE[l.tipo] === g);
@@ -340,8 +449,10 @@ export function EditorPlano({
   const escolher = (o: Origem) => {
     setAviso(undefined);
     if (o.tipo === "modelo") {
-      setLinhas(deModelo(o.modelo, valorVenda, dataVenda));
+      setLinhas(deModelo(o.modelo, valorVenda, dataVenda, renda || null));
       setModelo(o.modelo);
+      const d = o.modelo.regras.desconto_financiamento_percentual;
+      if (d != null && !desconto) setDesconto(String(d).replace(".", ","));
     } else {
       setLinhas(o.tipo === "atual" ? deSeries(seriesAtuais) : []);
       setModelo(null);
@@ -349,9 +460,41 @@ export function EditorPlano({
     setEscolhendo(false);
   };
 
-  /** Põe no financiamento o que falta para fechar com o valor da venda. */
+  /** Aprovado pelo banco mudou: o financiamento do plano passa a ser o líquido (aprovado - desconto). */
+  const mudarFinanciamento = (novoAprovado: number, novoDesconto: string) => {
+    setAprovado(novoAprovado);
+    setDesconto(novoDesconto);
+    if (!novoAprovado) return;
+    const liquido = financiamentoLiquido(novoAprovado, Number(novoDesconto.replace(",", ".")) || 0);
+    setLinhas((ls) => {
+      const fin = ls.find((l) => l.tipo === "financiamento");
+      if (!fin) return [...ls, linhaNova("financiamento", hoje, liquido)];
+      return ls.map((l) => (l.chave === fin.chave ? { ...l, quantidade: "1", valor: liquido, emAberto: false } : l));
+    });
+  };
+
+  /** Linhas com teto vão para o máximo permitido pela renda atual. */
+  const preencherMaximos = () =>
+    setLinhas((ls) =>
+      ls.map((l) => {
+        const max = maximoParcela({ quantidade: qtdDe(l), teto_renda_percentual: l.tetoRenda, teto_imovel_percentual: l.tetoImovel }, renda || null, valorVenda);
+        return max != null ? { ...l, valor: reaisInteiros(max), emAberto: false } : l;
+      }),
+    );
+
+  /** Linha que fecha a conta: a marcada no modelo (ex.: 4º ato) ou, sem ela, o financiamento. */
+  const alvoCompletar = linhas.find((l) => l.completa) ?? null;
+  const nomeAlvo = alvoCompletar ? alvoCompletar.descricao.trim() || TIPO_SERIE_LABEL[alvoCompletar.tipo] : null;
+
+  /** Põe na linha marcada (ou no financiamento) o que falta para fechar com o valor da venda. */
   const completar = () => {
     setAviso(undefined);
+    if (alvoCompletar) {
+      const qtd = Math.max(qtdDe(alvoCompletar), 1);
+      const novoTotal = totalDe(alvoCompletar) + diferenca;
+      if (novoTotal <= 0) return setAviso(`Mesmo zerando ${nomeAlvo}, o plano passa do valor da venda.`);
+      return mudar(alvoCompletar.chave, { quantidade: String(qtd), valor: Math.round(novoTotal / qtd), emAberto: false });
+    }
     const fin = linhas.find((l) => l.tipo === "financiamento");
     if (!fin) {
       if (diferenca <= 0) return setAviso("O plano já passa do valor da venda. Reduza alguma parcela.");
@@ -396,6 +539,21 @@ export function EditorPlano({
         </Card>
       )}
 
+      <Card className="mt-3 divide-y divide-separator overflow-hidden">
+        <MoneyField label="Renda familiar mensal" name="renda" value={renda} onChange={setRenda} />
+        {comTeto.length > 0 && renda > 0 && (
+          <button type="button" onClick={preencherMaximos} className="flex w-full items-center gap-1.5 px-4 py-2.5 text-left text-[14px] font-medium text-accent">
+            <Wand2 className="size-4" /> Preencher {plural(comTeto.length, "linha com teto", "linhas com teto")} com o máximo
+          </button>
+        )}
+        {posEntrega != null && renda > 0 && (
+          <div className="px-4 py-2.5 text-[13px] text-label-2">
+            Parcela do financiamento após a entrega: até <span className="sensivel">{brl(Math.round((renda * posEntrega) / 100))}</span> ({pctTexto(posEntrega)} da renda)
+          </div>
+        )}
+        {comTeto.length > 0 && !renda && <div className="px-4 py-2.5 text-[13px] text-pending">Informe a renda para calcular o máximo das parcelas.</div>}
+      </Card>
+
       {(["entrada", "banco"] as const).map((g) => {
         const lista = g === "entrada" ? entrada : doBanco;
         return (
@@ -408,9 +566,10 @@ export function EditorPlano({
               </span>
             </div>
             {g === "banco" && <BancoCampo valor={banco} aoMudar={setBanco} />}
+            {g === "banco" && <FinanciamentoCampos aprovado={aprovado} desconto={desconto} aoMudar={mudarFinanciamento} />}
             <div className="flex flex-col gap-3">
               {lista.map((l) => (
-                <EditorLinha key={l.chave} l={l} grupo={g} aoMudar={(p) => mudar(l.chave, p)} aoRemover={() => remover(l.chave)} />
+                <EditorLinha key={l.chave} l={l} grupo={g} renda={renda} valorVenda={valorVenda} aoMudar={(p) => mudar(l.chave, p)} aoRemover={() => remover(l.chave)} />
               ))}
               {lista.length === 0 && (
                 <p className="px-1 text-[14px] text-label-3">{g === "entrada" ? "Nenhuma parcela de entrada." : "Nenhum valor do banco."}</p>
@@ -454,7 +613,7 @@ export function EditorPlano({
               onClick={completar}
               className="mt-3 flex h-9 items-center gap-1.5 rounded-full bg-surface-2 px-3.5 text-[14px] font-medium text-accent transition active:scale-[0.97]"
             >
-              <Wand2 className="size-4" /> Completar com o financiamento
+              <Wand2 className="size-4" /> {nomeAlvo ? `Completar no ${nomeAlvo}` : "Completar com o financiamento"}
             </button>
           )}
           {aviso && <p className="mt-2 text-[13px] text-negative">{aviso}</p>}

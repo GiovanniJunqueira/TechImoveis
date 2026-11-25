@@ -2,10 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, FileImage, FileSpreadsheet, FileText, Upload, X } from "lucide-react";
+import { Check, Eye, EyeOff, FileImage, FileSpreadsheet, FileText, Upload, X } from "lucide-react";
 import { LixeiraConfirmar } from "@/components/botao-excluir";
 import { excluirDocumento } from "../../cadastro-actions";
-import { definirStatusDocumento } from "./portal-actions";
+import { definirStatusDocumento, definirVisibilidadeDocumento } from "./portal-actions";
 import { Segmented } from "@/components/form";
 import { Badge, Card, SectionTitle, cn } from "@/components/ui";
 import { ACCEPT, PASTAS, tamanhoLegivel } from "@/lib/documentos";
@@ -17,6 +17,7 @@ export type Documento = {
   pasta: string;
   status: "ok" | "pendente" | "recusado";
   enviado_por: "corretor" | "cliente";
+  visivel_cliente: boolean;
   criado_em: string;
   mime: string | null;
   tamanho_bytes: number | null;
@@ -38,6 +39,12 @@ function LinhaDocumento({ d }: { d: Documento }) {
       const r = await definirStatusDocumento(d.id, s);
       if (r.erro) setErro(r.erro);
     });
+  const visibilidade = () =>
+    iniciar(async () => {
+      setErro(undefined);
+      const r = await definirVisibilidadeDocumento(d.id, !d.visivel_cliente);
+      if (r.erro) setErro(r.erro);
+    });
 
   return (
     <div className={cn("py-3 pr-2 pl-4 md:pl-5", pendente && "opacity-50")}>
@@ -49,11 +56,30 @@ function LinhaDocumento({ d }: { d: Documento }) {
             <div className="text-[13px] text-label-2">{[tamanhoLegivel(d.tamanho_bytes), dataCurta(d.criado_em)].filter(Boolean).join(" · ")}</div>
             {d.enviado_por === "cliente" && <div className="text-[12px] text-accent">Enviado pelo cliente</div>}
           </div>
+          {d.enviado_por === "corretor" && d.visivel_cliente && <Badge tone="accent">No portal</Badge>}
           {d.status === "pendente" && <Badge tone="pending">Em análise</Badge>}
           {d.status === "recusado" && <Badge tone="negative">Recusado</Badge>}
         </a>
         <LixeiraConfirmar rotulo={`Excluir ${d.nome}`} pendente={pendente} aoConfirmar={() => iniciar(async () => void (await excluirDocumento(d.id)))} />
       </div>
+      {d.enviado_por === "corretor" && (
+        <div className="mt-1.5 pr-2 pl-8">
+          <button
+            type="button"
+            disabled={pendente}
+            onClick={visibilidade}
+            role="switch"
+            aria-checked={d.visivel_cliente}
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-full px-3 text-[14px] font-medium transition active:scale-[0.97] disabled:opacity-60",
+              d.visivel_cliente ? "bg-accent/20 text-accent" : "bg-surface-2 text-label-2",
+            )}
+          >
+            {d.visivel_cliente ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+            Visível no portal
+          </button>
+        </div>
+      )}
       {d.status === "pendente" && (
         <div className="mt-2 flex gap-2 pr-2 pl-8">
           <button

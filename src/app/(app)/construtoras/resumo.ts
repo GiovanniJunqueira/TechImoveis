@@ -29,9 +29,15 @@ export function resumoSerieModelo(s: SerieModelo) {
   if (s.quantidade > 1) partes.push(`${s.quantidade}x`);
   if (s.percentual != null) partes.push(`${pctTexto(s.percentual)} do imóvel`);
   else if (s.valor_parcela_centavos) partes.push(s.quantidade > 1 ? `de ${brl(s.valor_parcela_centavos)}` : brl(s.valor_parcela_centavos));
+  else if (s.teto_renda_percentual || s.teto_imovel_percentual)
+    partes.push(
+      `até ${[s.teto_renda_percentual && `${pctTexto(s.teto_renda_percentual)} da renda por parcela`, s.teto_imovel_percentual && `${pctTexto(s.teto_imovel_percentual)} do imóvel no total`].filter(Boolean).join(" e ")}`,
+    );
   else partes.push("valor em aberto");
   if (s.quantidade > 1 && s.intervalo_meses > 0) partes.push(intervaloTexto(s.intervalo_meses));
   partes.push(s.quantidade > 1 && s.defasagem_meses != null ? `1º vencimento ${prazoTexto(s.defasagem_meses)}` : prazoTexto(s.defasagem_meses));
+  if (s.mes_fixo) partes.push(`sempre em ${["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][s.mes_fixo - 1]}`);
+  if (s.completa) partes.push("fecha a conta");
   return partes.join(", ").replace(/^(\d+x), de/, "$1 de");
 }
 

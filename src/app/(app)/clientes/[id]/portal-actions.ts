@@ -92,3 +92,21 @@ export async function definirStatusDocumento(documentoId: string, status: "ok" |
   revalidatePath(`/clientes/${data.cliente_id}`);
   return {};
 }
+
+/** Libera (ou esconde) no portal do cliente um documento enviado pelo corretor. */
+export async function definirVisibilidadeDocumento(documentoId: string, visivel: boolean): Promise<EstadoForm> {
+  if (typeof visivel !== "boolean") return { erro: "Valor inválido." };
+  const { supabase, tenant } = await getContexto();
+  const { data, error } = await supabase
+    .from("documentos")
+    .update({ visivel_cliente: visivel })
+    .eq("tenant_id", tenant.id)
+    .eq("id", documentoId)
+    .eq("enviado_por", "corretor")
+    .select("cliente_id")
+    .maybeSingle();
+  if (error) return { erro: "Não foi possível atualizar o documento." };
+  if (!data) return { erro: "Documento não encontrado." };
+  revalidatePath(`/clientes/${data.cliente_id}`);
+  return {};
+}

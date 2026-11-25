@@ -163,14 +163,14 @@ isOneToOne: false
                   ]
                 },"modelos_pagamento": {
                   Row: {
-                    "construtora_id": string | null,"criado_em": string,"id": string,"nome": string,"series": NonNullable<Json>,"tenant_id": string
+                    "atualizado_em": string,"construtora_id": string | null,"construtora_nome": string | null,"criado_em": string,"descricao": string | null,"id": string,"nome": string,"series": NonNullable<Json>,"tenant_id": string | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "construtora_id"?: string | null,"criado_em"?: string,"id"?: string,"nome": string,"series"?: NonNullable<Json>,"tenant_id"?: string
+                    "atualizado_em"?: string,"construtora_id"?: string | null,"construtora_nome"?: string | null,"criado_em"?: string,"descricao"?: string | null,"id"?: string,"nome": string,"series"?: NonNullable<Json>,"tenant_id"?: string | null
                   }
                   Update: {
-                    "construtora_id"?: string | null,"criado_em"?: string,"id"?: string,"nome"?: string,"series"?: NonNullable<Json>,"tenant_id"?: string
+                    "atualizado_em"?: string,"construtora_id"?: string | null,"construtora_nome"?: string | null,"criado_em"?: string,"descricao"?: string | null,"id"?: string,"nome"?: string,"series"?: NonNullable<Json>,"tenant_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -269,14 +269,14 @@ isOneToOne: false
                   ]
                 },"vendas": {
                   Row: {
-                    "atualizado_em": string,"cliente_id": string,"comissao_centavos": number,"comissao_percentual": number | null,"construtora_id": string | null,"criado_em": string,"data_venda": string,"empreendimento_id": string | null,"id": string,"imobiliaria_id": string | null,"imovel_descricao": string | null,"observacoes": string | null,"status": Database["public"]['Enums']["status_venda"],"tenant_id": string,"tipo": Database["public"]['Enums']["tipo_venda"],"unidade": string | null,"valor_venda_centavos": number
+                    "atualizado_em": string,"banco_financiamento": string | null,"cliente_id": string,"comissao_centavos": number,"comissao_percentual": number | null,"construtora_id": string | null,"criado_em": string,"data_venda": string,"empreendimento_id": string | null,"id": string,"imobiliaria_id": string | null,"imovel_descricao": string | null,"observacoes": string | null,"status": Database["public"]['Enums']["status_venda"],"tenant_id": string,"tipo": Database["public"]['Enums']["tipo_venda"],"unidade": string | null,"valor_venda_centavos": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "atualizado_em"?: string,"cliente_id": string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"empreendimento_id"?: string | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos": number
+                    "atualizado_em"?: string,"banco_financiamento"?: string | null,"cliente_id": string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"empreendimento_id"?: string | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos": number
                   }
                   Update: {
-                    "atualizado_em"?: string,"cliente_id"?: string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"empreendimento_id"?: string | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos"?: number
+                    "atualizado_em"?: string,"banco_financiamento"?: string | null,"cliente_id"?: string,"comissao_centavos"?: number,"comissao_percentual"?: number | null,"construtora_id"?: string | null,"criado_em"?: string,"data_venda"?: string,"empreendimento_id"?: string | null,"id"?: string,"imobiliaria_id"?: string | null,"imovel_descricao"?: string | null,"observacoes"?: string | null,"status"?: Database["public"]['Enums']["status_venda"],"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_venda"],"unidade"?: string | null,"valor_venda_centavos"?: number
                   }
                   Relationships: [
                     {
@@ -320,7 +320,7 @@ isOneToOne: false
             [_ in never]: never
           }
           Enums: {
-            "forma_pagamento": "pix"|"ted"|"boleto"|"dinheiro"|"cheque"|"outro","origem_documento": "corretor"|"cliente","pagador_tipo": "cliente"|"construtora"|"imobiliaria"|"outro","papel_membro": "dono"|"corretor"|"gestor","status_documento": "ok"|"pendente"|"recusado","status_venda": "proposta"|"fechada"|"distrato","tipo_serie": "sinal"|"mensal"|"intercalada"|"anual"|"chaves"|"financiamento"|"outro","tipo_venda": "lancamento"|"pronto"|"revenda"
+            "forma_pagamento": "pix"|"ted"|"boleto"|"dinheiro"|"cheque"|"outro","origem_documento": "corretor"|"cliente","pagador_tipo": "cliente"|"construtora"|"imobiliaria"|"outro","papel_membro": "dono"|"corretor"|"gestor","status_documento": "ok"|"pendente"|"recusado","status_venda": "proposta"|"fechada"|"distrato","tipo_serie": "ato"|"sinal"|"mensal"|"intercalada"|"anual"|"chaves"|"financiamento"|"fgts"|"subsidio"|"outro","tipo_venda": "lancamento"|"pronto"|"revenda"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -440,7 +440,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "forma_pagamento": ["pix", "ted", "boleto", "dinheiro", "cheque", "outro"],"origem_documento": ["corretor", "cliente"],"pagador_tipo": ["cliente", "construtora", "imobiliaria", "outro"],"papel_membro": ["dono", "corretor", "gestor"],"status_documento": ["ok", "pendente", "recusado"],"status_venda": ["proposta", "fechada", "distrato"],"tipo_serie": ["sinal", "mensal", "intercalada", "anual", "chaves", "financiamento", "outro"],"tipo_venda": ["lancamento", "pronto", "revenda"]
+            "forma_pagamento": ["pix", "ted", "boleto", "dinheiro", "cheque", "outro"],"origem_documento": ["corretor", "cliente"],"pagador_tipo": ["cliente", "construtora", "imobiliaria", "outro"],"papel_membro": ["dono", "corretor", "gestor"],"status_documento": ["ok", "pendente", "recusado"],"status_venda": ["proposta", "fechada", "distrato"],"tipo_serie": ["ato", "sinal", "mensal", "intercalada", "anual", "chaves", "financiamento", "fgts", "subsidio", "outro"],"tipo_venda": ["lancamento", "pronto", "revenda"]
           }
         }
 } as const

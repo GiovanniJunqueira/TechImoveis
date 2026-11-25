@@ -71,7 +71,7 @@ export async function aplicarModelo(vendaId: string, modeloId: string): Promise<
   if (!modelo) return { erro: "Modelo não encontrado." };
 
   const { data: antigas } = await supabase.from("plano_series").select("id").eq("tenant_id", tenant.id).eq("venda_id", vendaId);
-  const novas = modeloParaSeries(modelo.series as unknown as SerieModelo[], venda.valor_venda_centavos, venda.data_venda);
+  const novas = modeloParaSeries(modelo.series as unknown as SerieModelo[], venda.valor_venda_centavos, venda.data_venda).filter((s) => s.valor_total_centavos > 0);
   if (!novas.length) return { erro: "O modelo está vazio." };
   const { error } = await supabase.from("plano_series").insert(novas.map((s) => ({ ...s, tenant_id: tenant.id, venda_id: vendaId })));
   if (error) return { erro: "Não foi possível aplicar o modelo." };

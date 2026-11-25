@@ -178,7 +178,7 @@ function UsarModelo({ vendaId, modelos, temPlano }: { vendaId: string; modelos: 
     <Card className="divide-y divide-separator overflow-hidden">
       {modelos.map((m) => {
         const armado = confirmar === m.id;
-        const pct = m.series.reduce((s, x) => s + x.percentual, 0);
+        const pct = m.series.reduce((s, x) => s + (x.percentual ?? 0), 0);
         return (
           <div key={m.id} className="flex items-center gap-3 py-2.5 pr-2 pl-4 md:pl-5">
             <button

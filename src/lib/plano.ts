@@ -1,27 +1,56 @@
 // Plano de pagamento do cliente: séries de parcelas e o cronograma calculado a partir delas.
 // Sem dependências de servidor: usado tanto nas páginas quanto nos formulários.
 
-export const TIPOS_SERIE = ["sinal", "mensal", "intercalada", "anual", "chaves", "financiamento", "outro"] as const;
+export const TIPOS_SERIE = ["ato", "sinal", "mensal", "intercalada", "anual", "chaves", "financiamento", "fgts", "subsidio", "outro"] as const;
 export type TipoSerie = (typeof TIPOS_SERIE)[number];
 
 export const TIPO_SERIE_LABEL: Record<TipoSerie, string> = {
+  ato: "Ato",
   sinal: "Sinal",
   mensal: "Mensais",
   intercalada: "Intercaladas",
   anual: "Anuais",
   chaves: "Chaves",
   financiamento: "Financiamento",
+  fgts: "FGTS",
+  subsidio: "Subsídio",
   outro: "Outro",
+};
+
+/**
+ * Na planta, a ENTRADA é parcelada direto com a construtora; o resto vem do BANCO
+ * (financiamento, FGTS e subsídio, liberados pela Caixa ou outro banco).
+ */
+export type GrupoSerie = "entrada" | "banco";
+export const GRUPO_SERIE: Record<TipoSerie, GrupoSerie> = {
+  ato: "entrada",
+  sinal: "entrada",
+  mensal: "entrada",
+  intercalada: "entrada",
+  anual: "entrada",
+  chaves: "entrada",
+  outro: "entrada",
+  financiamento: "banco",
+  fgts: "banco",
+  subsidio: "banco",
+};
+export const GRUPO_LABEL: Record<GrupoSerie, string> = { entrada: "Entrada com a construtora", banco: "Financiamento bancário" };
+export const TIPOS_POR_GRUPO: Record<GrupoSerie, TipoSerie[]> = {
+  entrada: TIPOS_SERIE.filter((t) => GRUPO_SERIE[t] === "entrada"),
+  banco: TIPOS_SERIE.filter((t) => GRUPO_SERIE[t] === "banco"),
 };
 
 /** Intervalo padrão (em meses) e quantidade sugerida de cada tipo de série. */
 export const PADRAO_SERIE: Record<TipoSerie, { intervalo: number; quantidade: number }> = {
+  ato: { intervalo: 1, quantidade: 1 },
   sinal: { intervalo: 0, quantidade: 1 },
   mensal: { intervalo: 1, quantidade: 36 },
   intercalada: { intervalo: 6, quantidade: 6 },
   anual: { intervalo: 12, quantidade: 3 },
   chaves: { intervalo: 0, quantidade: 1 },
   financiamento: { intervalo: 0, quantidade: 1 },
+  fgts: { intervalo: 0, quantidade: 1 },
+  subsidio: { intervalo: 0, quantidade: 1 },
   outro: { intervalo: 0, quantidade: 1 },
 };
 
@@ -44,15 +73,27 @@ export type Serie = {
   intervalo_meses: number;
 };
 
-/** Série de um modelo: proporções em vez de valores e datas. */
+/**
+ * Série de um modelo de construtora: a estrutura do plano (tipo, quantidade, prazos).
+ * O valor pode vir de um percentual do imóvel, de um valor fixo por parcela, ou ficar
+ * em aberto (null nos dois) para o corretor digitar na proposta.
+ */
 export type SerieModelo = {
   tipo: TipoSerie;
   descricao: string | null;
   quantidade: number;
-  percentual: number; // % do valor da venda que a série soma
+  percentual: number | null; // % do valor da venda que a série soma
+  valor_parcela_centavos?: number | null; // valor fixo de cada parcela
   intervalo_meses: number;
   defasagem_meses: number | null; // meses entre a venda e o 1º vencimento (null = sem data)
 };
+
+/** Soma por grupo (entrada x banco). */
+export function totaisPorGrupo(series: Pick<Serie, "tipo" | "valor_total_centavos">[]) {
+  const t = { entrada: 0, banco: 0 };
+  for (const s of series) t[GRUPO_SERIE[s.tipo]] += s.valor_total_centavos;
+  return t;
+}
 
 export type Parcela = { serieId: string; tipo: TipoSerie; numero: number; de: number; valor: number; vencimento: string | null };
 
@@ -115,13 +156,19 @@ export function modeloParaSeries(modelo: SerieModelo[], valorVenda: number, data
     tipo: m.tipo,
     descricao: m.descricao,
     quantidade: m.quantidade,
-    valor_total_centavos: Math.round((valorVenda * m.percentual) / 100),
+    valor_total_centavos:
+      m.percentual != null
+        ? Math.round((valorVenda * m.percentual) / 100)
+        : m.valor_parcela_centavos
+          ? m.valor_parcela_centavos * m.quantidade
+          : 0, // em aberto: o corretor digita o valor na proposta
     primeiro_vencimento: m.defasagem_meses == null ? null : somarMeses(dataVenda, m.defasagem_meses),
     intervalo_meses: m.intervalo_meses,
     ordem,
   }));
   // Modelo que fecha 100%: a sobra do arredondamento vai para a última série, para o plano bater com a venda.
-  const pct = modelo.reduce((s, m) => s + m.percentual, 0);
-  if (series.length && Math.abs(pct - 100) < 0.01) series[series.length - 1].valor_total_centavos += valorVenda - totalPlano(series);
-  return series.filter((s) => s.valor_total_centavos > 0);
+  const pct = modelo.reduce((s, m) => s + (m.percentual ?? 0), 0);
+  if (series.length && modelo.every((m) => m.percentual != null) && Math.abs(pct - 100) < 0.01) series[series.length - 1].valor_total_centavos += valorVenda - totalPlano(series);
+  // Séries com valor 0 continuam na lista: são as que o corretor ainda vai preencher.
+  return series;
 }

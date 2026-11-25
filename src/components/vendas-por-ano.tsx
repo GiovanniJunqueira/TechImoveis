@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { GrupoAno, GrupoMes, Venda } from "@/lib/vendas";
@@ -26,31 +27,32 @@ function Collapse({ open, children }: { open: boolean; children: React.ReactNode
   );
 }
 
-const statusBadge: Record<Venda["statusComissao"], { label: string; tone: "positive" | "pending" | "negative" }> = {
+export const statusBadge: Record<Venda["statusComissao"], { label: string; tone: "positive" | "pending" | "negative" }> = {
   recebida: { label: "Recebida", tone: "positive" },
   a_receber: { label: "A receber", tone: "pending" },
   atrasada: { label: "Atrasada", tone: "negative" },
 };
 
-function LinhaVenda({ venda }: { venda: Venda }) {
+/** Uma venda (cliente, comissão, data, imóvel, status). Abre o detalhe da venda. */
+export function LinhaVenda({ venda, mostrarCliente = true }: { venda: Venda; mostrarCliente?: boolean }) {
   const s = statusBadge[venda.statusComissao];
   return (
-    <button
-      type="button"
-      className="w-full rounded-[18px] bg-surface px-4 py-3.5 text-left transition active:scale-[0.99] active:bg-surface-3 md:px-5"
+    <Link
+      href={`/vendas/${venda.id}`}
+      className="block w-full rounded-[18px] bg-surface px-4 py-3.5 text-left transition active:scale-[0.99] active:bg-surface-3 md:px-5"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-[16px] font-semibold">{venda.cliente}</span>
+        <span className="min-w-0 truncate text-[16px] font-semibold">{mostrarCliente ? venda.cliente : venda.empreendimento}</span>
         <Money cents={venda.comissao} signed className="text-[16px] font-semibold" />
       </div>
       <div className="mt-1 flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-[13px] text-label-2">
-          {dayLabel(venda.data)}, {venda.empreendimento}
+          {mostrarCliente ? `${dayLabel(venda.data)}, ${venda.empreendimento}` : `${dayLabel(venda.data)} de ${venda.data.slice(0, 4)}, ${venda.tipo}`}
         </span>
         <Badge tone={s.tone}>{s.label}</Badge>
       </div>
       <div className="mt-0.5 text-[13px] text-label-2">Venda de {brl(venda.valorVenda)}</div>
-    </button>
+    </Link>
   );
 }
 

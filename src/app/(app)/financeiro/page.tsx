@@ -1,4 +1,5 @@
-import { Badge, Card, Money, PageHeader, SectionTitle } from "@/components/ui";
+import Link from "next/link";
+import { Badge, Card, Chevron, Money, PageHeader, SectionTitle } from "@/components/ui";
 import { EstadoVazio } from "@/components/estado-vazio";
 import { listarVendas } from "@/lib/dal";
 import { hojeISO, resumoFinanceiro } from "@/lib/vendas";
@@ -15,7 +16,7 @@ export default async function FinanceiroPage() {
 
   return (
     <>
-      <PageHeader title="Financeiro" subtitle="O que você já recebeu e o que ainda vai entrar." />
+      <PageHeader title="Financeiro" subtitle="O que você já recebeu e o que ainda vai entrar. Toque numa comissão para marcar como recebida." />
 
       {vendas.length === 0 ? (
         <EstadoVazio titulo="Nada por aqui ainda" texto="Quando você cadastrar vendas, as comissões a receber e recebidas aparecem aqui." />
@@ -38,7 +39,7 @@ export default async function FinanceiroPage() {
               <SectionTitle>A receber</SectionTitle>
               <Card className="divide-y divide-separator overflow-hidden">
                 {r.pendentes.map((x) => (
-                  <div key={x.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <Link key={x.id} href={`/vendas/${x.id}`} className="flex items-center gap-3 py-3.5 pr-3 pl-5 transition active:bg-surface-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[16px] font-medium">{x.cliente}</div>
                       <div className="text-[13px] text-label-2">
@@ -50,7 +51,8 @@ export default async function FinanceiroPage() {
                       <span className="text-[16px] font-semibold tabular-nums">{brl(x.comissao)}</span>
                       {x.statusComissao === "atrasada" ? <Badge tone="negative">Atrasada</Badge> : <Badge tone="pending">A receber</Badge>}
                     </div>
-                  </div>
+                    <Chevron />
+                  </Link>
                 ))}
               </Card>
             </>
@@ -61,7 +63,7 @@ export default async function FinanceiroPage() {
               <SectionTitle>Recebidos recentemente</SectionTitle>
               <Card className="divide-y divide-separator overflow-hidden">
                 {recebidas.map((x) => (
-                  <div key={x.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <Link key={x.id} href={`/vendas/${x.id}`} className="flex items-center gap-3 py-3.5 pr-3 pl-5 transition active:bg-surface-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[16px] font-medium">{x.cliente}</div>
                       <div className="text-[13px] text-label-2">
@@ -69,7 +71,8 @@ export default async function FinanceiroPage() {
                       </div>
                     </div>
                     <Money cents={x.comissao} signed className="text-[16px] font-semibold" />
-                  </div>
+                    <Chevron />
+                  </Link>
                 ))}
               </Card>
             </>

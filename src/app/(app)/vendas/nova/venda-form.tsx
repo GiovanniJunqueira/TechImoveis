@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { UserPlus } from "lucide-react";
-import { criarVenda } from "../../cadastro-actions";
+import { atualizarVenda, criarVenda } from "../../cadastro-actions";
 import type { EstadoForm } from "@/app/(auth)/actions";
 import { Field, FieldGroup, FormSemReset, FormMessage, GroupLabel, MoneyField, Segmented, SelectField, SubmitButton, TextAreaField, Toggle } from "@/components/form";
 
@@ -23,6 +23,24 @@ const STATUS = [
   { value: "fechada", label: "Fechada" },
   { value: "proposta", label: "Proposta" },
 ];
+const STATUS_EDICAO = [...STATUS, { value: "distrato", label: "Distrato" }];
+
+/** Valores de uma venda existente, para editar. */
+export type VendaInicial = {
+  id: string;
+  clienteId: string;
+  tipo: string;
+  status: string;
+  data: string;
+  valor: number;
+  pct: number | null;
+  comissao: number;
+  imovel: string;
+  construtora: string;
+  unidade: string;
+  imobiliaria: string;
+  observacoes: string;
+};
 const PAGADORES = [
   { value: "cliente", label: "Cliente" },
   { value: "construtora", label: "Construtora" },
@@ -42,16 +60,27 @@ const dateCls = "[color-scheme:dark]";
 /** 5.5 -> "5,5" */
 const pctTexto = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
-export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; clienteInicial?: string; hoje: string }) {
-  const [estado, acao, salvando] = useActionState<EstadoForm, FormData>(criarVenda, {});
+export function VendaForm({
+  opcoes,
+  clienteInicial,
+  hoje,
+  inicial,
+}: {
+  opcoes: Opcoes;
+  clienteInicial?: string;
+  hoje: string;
+  /** Com uma venda, o formulário edita em vez de criar. As parcelas da comissão ficam no detalhe da venda. */
+  inicial?: VendaInicial;
+}) {
+  const [estado, acao, salvando] = useActionState<EstadoForm, FormData>(inicial ? atualizarVenda.bind(null, inicial.id) : criarVenda, {});
 
-  const [cliente, setCliente] = useState(clienteInicial ?? (opcoes.clientes.length ? "" : "novo"));
-  const [tipo, setTipo] = useState("lancamento");
-  const [status, setStatus] = useState("fechada");
-  const [construtora, setConstrutora] = useState("");
-  const [valor, setValor] = useState(0);
-  const [pct, setPct] = useState("");
-  const [comissao, setComissao] = useState(0);
+  const [cliente, setCliente] = useState(inicial?.clienteId ?? clienteInicial ?? (opcoes.clientes.length ? "" : "novo"));
+  const [tipo, setTipo] = useState(inicial?.tipo ?? "lancamento");
+  const [status, setStatus] = useState(inicial?.status ?? "fechada");
+  const [construtora, setConstrutora] = useState(inicial?.construtora ?? "");
+  const [valor, setValor] = useState(inicial?.valor ?? 0);
+  const [pct, setPct] = useState(inicial?.pct != null ? pctTexto(inicial.pct) : "");
+  const [comissao, setComissao] = useState(inicial?.comissao ?? 0);
   const [pagador, setPagador] = useState("cliente");
   const [recebida, setRecebida] = useState(false);
 
@@ -69,7 +98,7 @@ export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; cl
 
   return (
     <FormSemReset acao={acao} className="flex flex-col">
-      <Segmented name="status" options={STATUS} value={status} onChange={setStatus} />
+      <Segmented name="status" options={inicial ? STATUS_EDICAO : STATUS} value={status} onChange={setStatus} />
 
       <GroupLabel>Cliente</GroupLabel>
       <FieldGroup>
@@ -103,6 +132,7 @@ export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; cl
             list={lancamento ? "lista-empreendimentos" : undefined}
             autoComplete="off"
             placeholder={lancamento ? "Ex.: Residencial Jardins" : "Ex.: Apto 3 dorm., Rua das Flores, 120"}
+            defaultValue={inicial?.imovel}
             onChange={(e) => lancamento && escolherEmpreendimento(e.target.value)}
           />
           {tipo !== "revenda" && (
@@ -115,8 +145,8 @@ export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; cl
               onChange={(e) => setConstrutora(e.target.value)}
             />
           )}
-          <Field label="Unidade" name="unidade" autoComplete="off" placeholder="Ex.: Torre B, apto 142" />
-          <Field label="Imobiliária parceira (opcional)" name="imobiliaria" list="lista-imobiliarias" autoComplete="off" />
+          <Field label="Unidade" name="unidade" autoComplete="off" placeholder="Ex.: Torre B, apto 142" defaultValue={inicial?.unidade} />
+          <Field label="Imobiliária parceira (opcional)" name="imobiliaria" list="lista-imobiliarias" autoComplete="off" defaultValue={inicial?.imobiliaria} />
         </FieldGroup>
       </div>
       <datalist id="lista-empreendimentos">
@@ -137,7 +167,7 @@ export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; cl
 
       <GroupLabel>Venda</GroupLabel>
       <FieldGroup>
-        <Field label="Data da venda" name="data_venda" type="date" required defaultValue={hoje} className={dateCls} />
+        <Field label="Data da venda" name="data_venda" type="date" required defaultValue={inicial?.data ?? hoje} className={dateCls} />
         <MoneyField
           label="Valor da venda"
           name="valor_venda"
@@ -181,7 +211,7 @@ export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; cl
         />
       </FieldGroup>
 
-      {comissao > 0 && (
+      {comissao > 0 && !inicial && (
         <>
           <GroupLabel>Quem paga a comissão</GroupLabel>
           <Segmented name="pagador_tipo" options={PAGADORES} value={pagador} onChange={setPagador} />
@@ -203,12 +233,14 @@ export function VendaForm({ opcoes, clienteInicial, hoje }: { opcoes: Opcoes; cl
 
       <GroupLabel>Observações</GroupLabel>
       <FieldGroup>
-        <TextAreaField label="Anotações sobre a venda" name="observacoes" />
+        <TextAreaField label="Anotações sobre a venda" name="observacoes" defaultValue={inicial?.observacoes} />
       </FieldGroup>
 
       <div className="mt-6 flex flex-col gap-3">
         <FormMessage erro={estado.erro} />
-        <SubmitButton pendingLabel="Salvando…" pending={salvando}>Salvar venda</SubmitButton>
+        <SubmitButton pendingLabel="Salvando…" pending={salvando}>
+          {inicial ? "Salvar alterações" : "Salvar venda"}
+        </SubmitButton>
       </div>
     </FormSemReset>
   );

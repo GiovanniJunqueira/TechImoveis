@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hojeISO, type StatusComissao, type Venda } from "@/lib/vendas";
 
@@ -81,13 +81,13 @@ export const listarVendas = cache(async (): Promise<Venda[]> => {
   });
 });
 
-export type ClienteLista = { id: string; nome: string; telefone: string | null; documentos: number; pendentes: number; vendas: number };
+export type ClienteLista = { id: string; nome: string; telefone: string | null; cpf: string | null; documentos: number; pendentes: number; vendas: number };
 
 export const listarClientes = cache(async (): Promise<ClienteLista[]> => {
   const { supabase, tenant } = await getContexto();
   const { data, error } = await supabase
     .from("clientes")
-    .select("id, nome, telefone, vendas(count), documentos(status)")
+    .select("id, nome, telefone, cpf, vendas(count), documentos(status)")
     .eq("tenant_id", tenant.id)
     .order("nome");
   if (error) throw error;
@@ -95,6 +95,7 @@ export const listarClientes = cache(async (): Promise<ClienteLista[]> => {
     id: c.id,
     nome: c.nome,
     telefone: c.telefone,
+    cpf: c.cpf,
     vendas: c.vendas[0]?.count ?? 0,
     documentos: c.documentos.length,
     pendentes: c.documentos.filter((d) => d.status === "pendente").length,
@@ -118,3 +119,53 @@ export const opcoesVenda = cache(async () => {
     imobiliarias: imobiliarias.data!.map((i) => i.nome),
   };
 });
+
+const uuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+/** Ficha completa do cliente, com vendas e documentos. 404 se não existir no tenant. */
+export const obterCliente = cache(async (id: string) => {
+  if (!uuid(id)) notFound();
+  const { supabase, tenant } = await getContexto();
+  const [{ data: cliente }, vendas, { data: documentos }] = await Promise.all([
+    supabase
+      .from("clientes")
+      .select("id, nome, cpf, email, telefone, data_nascimento, observacoes, criado_em")
+      .eq("tenant_id", tenant.id)
+      .eq("id", id)
+      .maybeSingle(),
+    listarVendas(),
+    supabase
+      .from("documentos")
+      .select("id, nome, pasta, status, enviado_por, criado_em")
+      .eq("tenant_id", tenant.id)
+      .eq("cliente_id", id)
+      .order("criado_em", { ascending: false }),
+  ]);
+  if (!cliente) notFound();
+  return { ...cliente, vendas: vendas.filter((v) => v.clienteId === id), documentos: documentos ?? [] };
+});
+
+/** Venda completa, com nomes relacionados e parcelas da comissão. 404 se não existir no tenant. */
+export const obterVenda = cache(async (id: string) => {
+  if (!uuid(id)) notFound();
+  const { supabase, tenant } = await getContexto();
+  const { data, error } = await supabase
+    .from("vendas")
+    .select(
+      `id, tipo, status, unidade, imovel_descricao, valor_venda_centavos, data_venda, comissao_percentual, comissao_centavos, observacoes,
+       cliente:clientes(id, nome, telefone),
+       empreendimento:empreendimentos(nome),
+       construtora:construtoras(nome),
+       imobiliaria:imobiliarias(nome),
+       recebimentos(id, pagador_tipo, pagador_nome, valor_previsto_centavos, data_prevista, valor_recebido_centavos, data_recebida, forma)`,
+    )
+    .eq("tenant_id", tenant.id)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) notFound();
+  return { ...data, recebimentos: [...data.recebimentos].sort((a, b) => a.data_prevista.localeCompare(b.data_prevista)) };
+});
+
+export type VendaCompleta = Awaited<ReturnType<typeof obterVenda>>;
+export { TIPO_LABEL, PAGADOR_LABEL };

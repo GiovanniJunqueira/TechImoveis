@@ -27,3 +27,7 @@ E-mails do Auth local (confirmação, recuperação de senha) aparecem no Mailpi
 - Senha: `TesteLocal#2026`
 
 Some quando você roda `npm run db:reset`; é só criar de novo em `/cadastro` e clicar em "Ver com dados de exemplo".
+
+## Problemas conhecidos
+
+- Depois de mudar um arquivo de Server Actions (`*-actions.ts`) ou acrescentar exportações em componentes de cliente, o `npm run dev` às vezes dá erro 500 ("Element type is invalid" ou "Cannot read properties of undefined (reading 'bind')"). É cache do modo de desenvolvimento: pare e rode `npm run dev` de novo.

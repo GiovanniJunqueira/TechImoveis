@@ -1,35 +1,29 @@
 "use client";
 
 import { useActionState } from "react";
-import { criarCliente } from "../../cadastro-actions";
+import { atualizarCliente, criarCliente } from "../../cadastro-actions";
 import type { EstadoForm } from "@/app/(auth)/actions";
-import { Field, FieldGroup, FormSemReset, FormMessage, GroupLabel, SubmitButton, TextAreaField } from "@/components/form";
+import { Field, FieldGroup, FormMessage, FormSemReset, GroupLabel, SubmitButton, TextAreaField } from "@/components/form";
+import { mascaraCpf, mascaraTelefone } from "@/lib/format";
 
-/** 12345678901 -> 123.456.789-01 enquanto digita. */
-function mascaraCpf(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  return d
-    .replace(/^(\d{3})(\d)/, "$1.$2")
-    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
-    .replace(/\.(\d{3})(\d{1,2})$/, ".$1-$2");
-}
+export type ClienteInicial = {
+  id: string;
+  nome: string;
+  cpf: string | null;
+  email: string | null;
+  telefone: string | null;
+  data_nascimento: string | null;
+  observacoes: string | null;
+};
 
-/** 11987654321 -> (11) 98765-4321 enquanto digita. */
-function mascaraTelefone(v: string) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d.replace(/^(\d{1,2})/, "($1");
-  if (d.length <= 6) return d.replace(/^(\d{2})(\d+)/, "($1) $2");
-  if (d.length <= 10) return d.replace(/^(\d{2})(\d{4})(\d+)/, "($1) $2-$3");
-  return d.replace(/^(\d{2})(\d{5})(\d+)/, "($1) $2-$3");
-}
-
-export function ClienteForm({ voltar }: { voltar?: string }) {
-  const [estado, acao, salvando] = useActionState<EstadoForm, FormData>(criarCliente, {});
+/** Cadastro de cliente; com `inicial`, edita o cliente existente. */
+export function ClienteForm({ voltar, inicial }: { voltar?: string; inicial?: ClienteInicial }) {
+  const [estado, acao, salvando] = useActionState<EstadoForm, FormData>(inicial ? atualizarCliente.bind(null, inicial.id) : criarCliente, {});
   return (
     <FormSemReset acao={acao} className="flex flex-col">
       {voltar && <input type="hidden" name="voltar" value={voltar} />}
       <FieldGroup>
-        <Field label="Nome completo" name="nome" autoComplete="off" required autoFocus />
+        <Field label="Nome completo" name="nome" autoComplete="off" required autoFocus={!inicial} defaultValue={inicial?.nome} />
       </FieldGroup>
 
       <GroupLabel>Contato</GroupLabel>
@@ -40,9 +34,10 @@ export function ClienteForm({ voltar }: { voltar?: string }) {
           type="tel"
           inputMode="tel"
           placeholder="(11) 90000-0000"
+          defaultValue={inicial?.telefone ? mascaraTelefone(inicial.telefone) : undefined}
           onChange={(e) => (e.currentTarget.value = mascaraTelefone(e.currentTarget.value))}
         />
-        <Field label="E-mail" name="email" type="email" inputMode="email" placeholder="cliente@email.com" />
+        <Field label="E-mail" name="email" type="email" inputMode="email" placeholder="cliente@email.com" defaultValue={inicial?.email ?? undefined} />
       </FieldGroup>
 
       <GroupLabel>Documentos</GroupLabel>
@@ -52,19 +47,33 @@ export function ClienteForm({ voltar }: { voltar?: string }) {
           name="cpf"
           inputMode="numeric"
           placeholder="000.000.000-00"
+          defaultValue={inicial?.cpf ? mascaraCpf(inicial.cpf) : undefined}
           onChange={(e) => (e.currentTarget.value = mascaraCpf(e.currentTarget.value))}
         />
-        <Field label="Data de nascimento" name="data_nascimento" type="date" className="[color-scheme:dark]" />
+        <Field
+          label="Data de nascimento"
+          name="data_nascimento"
+          type="date"
+          className="[color-scheme:dark]"
+          defaultValue={inicial?.data_nascimento ?? undefined}
+        />
       </FieldGroup>
 
       <GroupLabel>Observações</GroupLabel>
       <FieldGroup>
-        <TextAreaField label="Anotações sobre o cliente" name="observacoes" placeholder="Ex.: prefere contato à noite" />
+        <TextAreaField
+          label="Anotações sobre o cliente"
+          name="observacoes"
+          placeholder="Ex.: prefere contato à noite"
+          defaultValue={inicial?.observacoes ?? undefined}
+        />
       </FieldGroup>
 
       <div className="mt-6 flex flex-col gap-3">
         <FormMessage erro={estado.erro} />
-        <SubmitButton pendingLabel="Salvando…" pending={salvando}>Salvar cliente</SubmitButton>
+        <SubmitButton pendingLabel="Salvando…" pending={salvando}>
+          {inicial ? "Salvar alterações" : "Salvar cliente"}
+        </SubmitButton>
       </div>
     </FormSemReset>
   );

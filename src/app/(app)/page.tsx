@@ -65,7 +65,7 @@ export default async function InicioPage() {
               </SectionTitle>
               <Card className="divide-y divide-separator overflow-hidden">
                 {r.pendentes.slice(0, 5).map((x) => (
-                  <div key={x.id} className="flex items-center gap-3 px-5 py-3.5">
+                  <Link key={x.id} href={`/vendas/${x.id}`} className="flex items-center gap-3 py-3.5 pr-3 pl-5 transition active:bg-surface-3">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[16px] font-medium">{x.cliente}</div>
                       <div className="text-[13px] text-label-2">
@@ -77,7 +77,7 @@ export default async function InicioPage() {
                       {x.statusComissao === "atrasada" ? <Badge tone="negative">Atrasada</Badge> : <Badge tone="pending">A receber</Badge>}
                     </div>
                     <Chevron />
-                  </div>
+                  </Link>
                 ))}
               </Card>
             </>

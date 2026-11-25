@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Rotas abertas (sem login). */
-const PUBLICAS = ["/entrar", "/cadastro", "/auth"];
+const PUBLICAS = ["/entrar", "/cadastro", "/auth", "/portal", "/api/portal"];
 
 /** Renova a sessão do Supabase e redireciona quem não está logado. */
 export async function updateSession(request: NextRequest) {

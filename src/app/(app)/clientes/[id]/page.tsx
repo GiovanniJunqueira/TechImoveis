@@ -7,6 +7,8 @@ import { BotaoExcluir } from "@/components/botao-excluir";
 import { excluirCliente } from "../../cadastro-actions";
 import { obterCliente } from "@/lib/dal";
 import { Documentos } from "./documentos";
+import { PortalCliente } from "./portal";
+import { linkPortalAtivo } from "./portal-dados";
 import { dataCurta, iniciais, mascaraCpf, mascaraTelefone, plural } from "@/lib/format";
 
 export async function generateMetadata({ params }: PageProps<"/clientes/[id]">): Promise<Metadata> {
@@ -39,7 +41,7 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
 
 export default async function ClientePage({ params }: PageProps<"/clientes/[id]">) {
   const { id } = await params;
-  const c = await obterCliente(id);
+  const [c, link] = await Promise.all([obterCliente(id), linkPortalAtivo(id)]);
   const tel = c.telefone?.replace(/\D/g, "");
   const comissao = c.vendas.reduce((s, v) => s + v.comissao, 0);
 
@@ -92,6 +94,14 @@ export default async function ClientePage({ params }: PageProps<"/clientes/[id]"
       </PrimaryButton>
 
       <Documentos clienteId={c.id} documentos={c.documentos} />
+
+      <PortalCliente
+        clienteId={c.id}
+        nome={c.nome}
+        telefone={c.telefone}
+        podeGerar={(c.cpf?.replace(/\D/g, "").length ?? 0) >= 4 || !!c.data_nascimento}
+        link={link}
+      />
 
       {c.vendas.length === 0 && (
         <BotaoExcluir

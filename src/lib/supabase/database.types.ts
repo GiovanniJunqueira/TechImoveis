@@ -141,6 +141,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"links_portal": {
+                  Row: {
+                    "bloqueado_ate": string | null,"cliente_id": string,"criado_em": string,"criado_por": string | null,"expira_em": string,"falhas": number,"id": string,"revogado_em": string | null,"tenant_id": string,"token_hash": string,"ultimo_acesso": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "bloqueado_ate"?: string | null,"cliente_id": string,"criado_em"?: string,"criado_por"?: string | null,"expira_em": string,"falhas"?: number,"id"?: string,"revogado_em"?: string | null,"tenant_id"?: string,"token_hash": string,"ultimo_acesso"?: string | null
+                  }
+                  Update: {
+                    "bloqueado_ate"?: string | null,"cliente_id"?: string,"criado_em"?: string,"criado_por"?: string | null,"expira_em"?: string,"falhas"?: number,"id"?: string,"revogado_em"?: string | null,"tenant_id"?: string,"token_hash"?: string,"ultimo_acesso"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "links_portal_tenant_id_cliente_id_fkey"
+      columns: ["tenant_id","cliente_id"]
+isOneToOne: false
+      referencedRelation: "clientes"
+      referencedColumns: ["tenant_id","id"]
+    },{
+      foreignKeyName: "links_portal_tenant_id_fkey"
+      columns: ["tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"membros_tenant": {
                   Row: {
                     "criado_em": string,"papel": Database["public"]['Enums']["papel_membro"],"tenant_id": string,"user_id": string
@@ -253,6 +279,26 @@ isOneToOne: false
       referencedColumns: ["tenant_id","id"]
     }
                   ]
+                },"sessoes_portal": {
+                  Row: {
+                    "criado_em": string,"expira_em": string,"link_id": string,"token_hash": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "criado_em"?: string,"expira_em": string,"link_id": string,"token_hash": string
+                  }
+                  Update: {
+                    "criado_em"?: string,"expira_em"?: string,"link_id"?: string,"token_hash"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "sessoes_portal_link_id_fkey"
+      columns: ["link_id"]
+isOneToOne: false
+      referencedRelation: "links_portal"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"tenants": {
                   Row: {
                     "cor_destaque": string,"criado_em": string,"id": string,"logo_url": string | null,"nome": string,"plano": string
@@ -317,7 +363,24 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "portal_dados":
+{ Args: { "p_link": string,"p_sessao": string }; Returns: Json
+                           },
+"portal_destino":
+{ Args: { "p_link": string,"p_sessao": string }; Returns: string
+                           },
+"portal_entrar":
+{ Args: { "p_link": string,"p_resposta": string,"p_sessao": string }; Returns: string
+                           },
+"portal_info":
+{ Args: { "p_link": string }; Returns: Json
+                           },
+"portal_registrar_documento":
+{ Args: { "p_chave": string,"p_link": string,"p_mime": string,"p_nome": string,"p_pasta": string,"p_sessao": string,"p_tamanho": number }; Returns: string
+                           },
+"portal_sair":
+{ Args: { "p_sessao": string }; Returns: undefined
+                           }
           }
           Enums: {
             "forma_pagamento": "pix"|"ted"|"boleto"|"dinheiro"|"cheque"|"outro","origem_documento": "corretor"|"cliente","pagador_tipo": "cliente"|"construtora"|"imobiliaria"|"outro","papel_membro": "dono"|"corretor"|"gestor","status_documento": "ok"|"pendente"|"recusado","status_venda": "proposta"|"fechada"|"distrato","tipo_serie": "ato"|"sinal"|"mensal"|"intercalada"|"anual"|"chaves"|"financiamento"|"fgts"|"subsidio"|"outro","tipo_venda": "lancamento"|"pronto"|"revenda"

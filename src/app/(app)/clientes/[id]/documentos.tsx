@@ -2,9 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileImage, FileSpreadsheet, FileText, Upload } from "lucide-react";
+import { Check, FileImage, FileSpreadsheet, FileText, Upload, X } from "lucide-react";
 import { LixeiraConfirmar } from "@/components/botao-excluir";
 import { excluirDocumento } from "../../cadastro-actions";
+import { definirStatusDocumento } from "./portal-actions";
 import { Segmented } from "@/components/form";
 import { Badge, Card, SectionTitle, cn } from "@/components/ui";
 import { ACCEPT, PASTAS, tamanhoLegivel } from "@/lib/documentos";
@@ -30,22 +31,50 @@ function Icone({ mime }: { mime: string | null }) {
 
 function LinhaDocumento({ d }: { d: Documento }) {
   const [pendente, iniciar] = useTransition();
+  const [erro, setErro] = useState<string>();
+  const status = (s: "ok" | "recusado") =>
+    iniciar(async () => {
+      setErro(undefined);
+      const r = await definirStatusDocumento(d.id, s);
+      if (r.erro) setErro(r.erro);
+    });
+
   return (
-    <div className={cn("flex items-center gap-3 py-3 pr-2 pl-4 md:pl-5", pendente && "opacity-50")}>
-      <a href={`/api/documentos/${d.id}`} target="_blank" rel="noopener" className="flex min-w-0 flex-1 items-center gap-3">
-        <Icone mime={d.mime} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[16px]">{d.nome}</div>
-          <div className="text-[13px] text-label-2">
-            {[tamanhoLegivel(d.tamanho_bytes), dataCurta(d.criado_em), d.enviado_por === "cliente" ? "enviado pelo cliente" : null]
-              .filter(Boolean)
-              .join(" · ")}
+    <div className={cn("py-3 pr-2 pl-4 md:pl-5", pendente && "opacity-50")}>
+      <div className="flex items-center gap-3">
+        <a href={`/api/documentos/${d.id}`} target="_blank" rel="noopener" className="flex min-w-0 flex-1 items-center gap-3">
+          <Icone mime={d.mime} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[16px]">{d.nome}</div>
+            <div className="text-[13px] text-label-2">{[tamanhoLegivel(d.tamanho_bytes), dataCurta(d.criado_em)].filter(Boolean).join(" · ")}</div>
+            {d.enviado_por === "cliente" && <div className="text-[12px] text-accent">Enviado pelo cliente</div>}
           </div>
+          {d.status === "pendente" && <Badge tone="pending">Em análise</Badge>}
+          {d.status === "recusado" && <Badge tone="negative">Recusado</Badge>}
+        </a>
+        <LixeiraConfirmar rotulo={`Excluir ${d.nome}`} pendente={pendente} aoConfirmar={() => iniciar(async () => void (await excluirDocumento(d.id)))} />
+      </div>
+      {d.status === "pendente" && (
+        <div className="mt-2 flex gap-2 pr-2 pl-8">
+          <button
+            type="button"
+            disabled={pendente}
+            onClick={() => status("ok")}
+            className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-positive/15 text-[15px] font-semibold text-positive transition active:scale-[0.97] disabled:opacity-60"
+          >
+            <Check className="size-4" /> Aprovar
+          </button>
+          <button
+            type="button"
+            disabled={pendente}
+            onClick={() => status("recusado")}
+            className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-negative/15 text-[15px] font-semibold text-negative transition active:scale-[0.97] disabled:opacity-60"
+          >
+            <X className="size-4" /> Recusar
+          </button>
         </div>
-        {d.status === "pendente" && <Badge tone="pending">Revisar</Badge>}
-        {d.status === "recusado" && <Badge tone="negative">Recusado</Badge>}
-      </a>
-      <LixeiraConfirmar rotulo={`Excluir ${d.nome}`} pendente={pendente} aoConfirmar={() => iniciar(async () => void (await excluirDocumento(d.id)))} />
+      )}
+      {erro && <p className="mt-2 pr-2 pl-8 text-[13px] text-negative">{erro}</p>}
     </div>
   );
 }

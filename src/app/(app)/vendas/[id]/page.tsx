@@ -4,7 +4,7 @@ import { Pencil } from "lucide-react";
 import { Badge, Card, Chevron, SectionTitle, VoltarLink, heroNumber } from "@/components/ui";
 import { BotaoExcluir } from "@/components/botao-excluir";
 import { excluirVenda } from "../../cadastro-actions";
-import { PAGADOR_LABEL, TIPO_LABEL, listarModelos, obterVenda } from "@/lib/dal";
+import { PAGADOR_LABEL, TIPO_LABEL, obterVenda } from "@/lib/dal";
 import { hojeISO } from "@/lib/vendas";
 import { brl, dataCurta, iniciais } from "@/lib/format";
 import { Recebimentos } from "./recebimentos";
@@ -34,7 +34,6 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
 export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
   const { id } = await params;
   const v = await obterVenda(id);
-  const modelos = await listarModelos(v.construtora_id);
   const hoje = hojeISO();
   const status = STATUS[v.status];
   const imovel = v.empreendimento?.nome ?? v.imovel_descricao;
@@ -55,12 +54,16 @@ export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
           <Badge tone="neutral">{TIPO_LABEL[v.tipo]}</Badge>
         </div>
         <div className="mt-4 text-[15px] text-label-2">Comissão</div>
-        <div className={`mt-1 ${heroNumber} tabular-nums`}>{brl(v.comissao_centavos)}</div>
+        <div className={`sensivel mt-1 ${heroNumber} tabular-nums`}>{brl(v.comissao_centavos)}</div>
         <div className="mt-2 text-[15px] text-label-2">
           {v.comissao_percentual != null && `${String(v.comissao_percentual).replace(".", ",")}% de `}
-          {brl(v.valor_venda_centavos)}, vendido em {dataCurta(v.data_venda)}
+          <span className="sensivel">{brl(v.valor_venda_centavos)}</span>, vendido em {dataCurta(v.data_venda)}
         </div>
-        {recebido > 0 && <div className="mt-1 text-[15px] text-positive">{brl(recebido)} já recebido</div>}
+        {recebido > 0 && (
+          <div className="mt-1 text-[15px] text-positive">
+            <span className="sensivel">{brl(recebido)}</span> já recebido
+          </div>
+        )}
       </header>
 
       {v.cliente && (
@@ -83,7 +86,7 @@ export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
         {v.construtora && <Linha rotulo="Construtora" valor={v.construtora.nome} />}
         {v.unidade && <Linha rotulo="Unidade" valor={v.unidade} />}
         {v.imobiliaria && <Linha rotulo="Imobiliária parceira" valor={v.imobiliaria.nome} />}
-        <Linha rotulo="Valor da venda" valor={brl(v.valor_venda_centavos)} />
+        <Linha rotulo="Valor da venda" valor={<span className="sensivel">{brl(v.valor_venda_centavos)}</span>} />
       </Card>
 
       <SectionTitle>Comissão</SectionTitle>
@@ -102,12 +105,20 @@ export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
         }))}
       />
 
-      <SectionTitle>Plano de pagamento do cliente</SectionTitle>
+      <SectionTitle
+        action={
+          <Link href={`/vendas/${v.id}/plano`} className="text-[15px] text-accent">
+            {v.plano_series.length ? "Editar plano" : "Montar plano"}
+          </Link>
+        }
+      >
+        Plano de pagamento do cliente
+      </SectionTitle>
       <Plano
         vendaId={v.id}
         valorVenda={v.valor_venda_centavos}
         series={v.plano_series}
-        modelos={modelos}
+        banco={v.banco_financiamento}
         construtora={v.construtora?.nome ?? null}
         hoje={hoje}
       />

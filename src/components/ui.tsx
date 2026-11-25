@@ -7,10 +7,16 @@ import { brl, brlInt } from "@/lib/format";
 
 export const cn = (...xs: Parameters<typeof clsx>) => twMerge(clsx(xs));
 
-export function PageHeader({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children?: ReactNode }) {
+/** Classe de todo valor em dinheiro: some (borrado) quando o <html> tem "valores-ocultos". */
+export const SENSIVEL = "sensivel";
+
+export function PageHeader({ title, subtitle, action, children }: { title: string; subtitle?: ReactNode; action?: ReactNode; children?: ReactNode }) {
   return (
     <header className="pt-6 pb-7 md:pt-12">
-      <h1 className="text-[34px] leading-[1.1] font-bold tracking-[-0.02em] md:text-[40px]">{title}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="min-w-0 text-[34px] leading-[1.1] font-bold tracking-[-0.02em] md:text-[40px]">{title}</h1>
+        {action}
+      </div>
       {subtitle && <div className="mt-2 text-[17px] text-label-2">{subtitle}</div>}
       {children}
     </header>
@@ -25,7 +31,7 @@ export function Card({ className, children }: { className?: string; children: Re
 export function Money({ cents, signed = false, whole = false, className }: { cents: number; signed?: boolean; whole?: boolean; className?: string }) {
   const tone = !signed ? "" : cents < 0 ? "text-negative" : "text-positive";
   const sign = signed && cents > 0 ? "+" : "";
-  return <span className={cn("whitespace-nowrap tabular-nums", tone, className)}>{sign}{whole ? brlInt(cents) : brl(cents)}</span>;
+  return <span className={cn(SENSIVEL, "whitespace-nowrap tabular-nums", tone, className)}>{sign}{whole ? brlInt(cents) : brl(cents)}</span>;
 }
 
 /** Número de destaque que se ajusta à largura da tela. */

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { GrupoAno, GrupoMes, Venda } from "@/lib/vendas";
 import { MONTHS, brl, dayLabel, plural } from "@/lib/format";
-import { Badge, Chevron, Money, cn } from "@/components/ui";
+import { Badge, Chevron, Money, SENSIVEL, cn } from "@/components/ui";
 
 const ease = [0.32, 0.72, 0, 1] as const;
 
@@ -51,7 +51,7 @@ export function LinhaVenda({ venda, mostrarCliente = true }: { venda: Venda; mos
         </span>
         <Badge tone={s.tone}>{s.label}</Badge>
       </div>
-      <div className="mt-0.5 text-[13px] text-label-2">Venda de {brl(venda.valorVenda)}</div>
+      <div className="mt-0.5 text-[13px] text-label-2">Venda de <span className={SENSIVEL}>{brl(venda.valorVenda)}</span></div>
     </Link>
   );
 }

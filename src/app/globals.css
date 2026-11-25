@@ -62,3 +62,17 @@ body {
 .pb-safe {
   padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
 }
+
+/* Ocultar valores: <html class="valores-ocultos"> borra todo elemento .sensivel (dinheiro). */
+.sensivel {
+  transition: filter 0.25s ease;
+}
+
+.valores-ocultos .sensivel,
+.valores-ocultos .sensivel:hover,
+.valores-ocultos .sensivel:active,
+.valores-ocultos .sensivel:focus {
+  filter: blur(9px);
+  -webkit-user-select: none;
+  user-select: none;
+}

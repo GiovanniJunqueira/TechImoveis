@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus, UserPlus } from "lucide-react";
-import { Badge, Card, Chevron, Money, PageHeader, PrimaryButton, SecondaryButton, SectionTitle, heroNumber } from "@/components/ui";
+import { Badge, Card, Chevron, Money, PageHeader, PrimaryButton, SecondaryButton, SectionTitle, SENSIVEL, cn, heroNumber } from "@/components/ui";
+import { OcultarValores } from "@/components/ocultar-valores";
 import { EstadoVazio } from "@/components/estado-vazio";
 import { getContexto, listarVendas } from "@/lib/dal";
 import { hojeISO, resumoFinanceiro } from "@/lib/vendas";
@@ -17,7 +18,7 @@ export default async function InicioPage() {
 
   return (
     <>
-      <PageHeader title={primeiroNome ? `Olá, ${primeiroNome}` : "Início"} subtitle={`${MONTHS[mes - 1]} de ${ano}`} />
+      <PageHeader title={primeiroNome ? `Olá, ${primeiroNome}` : "Início"} subtitle={`${MONTHS[mes - 1]} de ${ano}`} action={<OcultarValores />} />
 
       {vendas.length === 0 ? (
         <EstadoVazio
@@ -35,7 +36,7 @@ export default async function InicioPage() {
               <div className="mt-5 grid grid-cols-2 gap-4 border-t border-white/[0.08] pt-5">
                 <div>
                   <div className="text-[13px] text-label-2">A receber</div>
-                  <div className="mt-0.5 text-[19px] font-semibold text-pending tabular-nums">{brl(r.aReceber)}</div>
+                  <div className={cn(SENSIVEL, "mt-0.5 text-[19px] font-semibold text-pending tabular-nums")}>{brl(r.aReceber)}</div>
                 </div>
                 <div>
                   <div className="text-[13px] text-label-2">Vendas no ano</div>
@@ -53,7 +54,7 @@ export default async function InicioPage() {
             </Card>
             <Card className="px-5 py-4">
               <div className="text-[13px] text-label-2">VGV no ano</div>
-              <div className="mt-0.5 text-[19px] font-semibold tabular-nums">{brlCompact(r.vgvAno)}</div>
+              <div className={cn(SENSIVEL, "mt-0.5 text-[19px] font-semibold tabular-nums")}>{brlCompact(r.vgvAno)}</div>
               <div className="text-[13px] text-label-2">valor vendido</div>
             </Card>
           </div>
@@ -73,7 +74,7 @@ export default async function InicioPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="text-[16px] font-semibold tabular-nums">{brl(x.comissao)}</span>
+                      <span className={cn(SENSIVEL, "text-[16px] font-semibold tabular-nums")}>{brl(x.comissao)}</span>
                       {x.statusComissao === "atrasada" ? <Badge tone="negative">Atrasada</Badge> : <Badge tone="pending">A receber</Badge>}
                     </div>
                     <Chevron />

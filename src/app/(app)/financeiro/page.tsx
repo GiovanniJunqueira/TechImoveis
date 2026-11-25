@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Badge, Card, Chevron, Money, PageHeader, SectionTitle } from "@/components/ui";
+import { Badge, Card, Chevron, Money, PageHeader, SectionTitle, SENSIVEL, cn } from "@/components/ui";
+import { OcultarValores } from "@/components/ocultar-valores";
 import { EstadoVazio } from "@/components/estado-vazio";
 import { listarVendas } from "@/lib/dal";
 import { hojeISO, resumoFinanceiro } from "@/lib/vendas";
@@ -16,7 +17,7 @@ export default async function FinanceiroPage() {
 
   return (
     <>
-      <PageHeader title="Financeiro" subtitle="O que você já recebeu e o que ainda vai entrar. Toque numa comissão para marcar como recebida." />
+      <PageHeader title="Financeiro" subtitle="O que você já recebeu e o que ainda vai entrar. Toque numa comissão para marcar como recebida." action={<OcultarValores />} />
 
       {vendas.length === 0 ? (
         <EstadoVazio titulo="Nada por aqui ainda" texto="Quando você cadastrar vendas, as comissões a receber e recebidas aparecem aqui." />
@@ -29,8 +30,8 @@ export default async function FinanceiroPage() {
             </Card>
             <Card className="px-5 py-4">
               <div className="text-[13px] text-label-2">A receber</div>
-              <div className="mt-0.5 text-[22px] font-bold text-pending tabular-nums">{brl(r.aReceber)}</div>
-              {r.atrasado > 0 && <div className="text-[13px] text-negative">{brl(r.atrasado)} em atraso</div>}
+              <div className={cn(SENSIVEL, "mt-0.5 text-[22px] font-bold text-pending tabular-nums")}>{brl(r.aReceber)}</div>
+              {r.atrasado > 0 && <div className="text-[13px] text-negative"><span className={SENSIVEL}>{brl(r.atrasado)}</span> em atraso</div>}
             </Card>
           </div>
 
@@ -48,7 +49,7 @@ export default async function FinanceiroPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span className="text-[16px] font-semibold tabular-nums">{brl(x.comissao)}</span>
+                      <span className={cn(SENSIVEL, "text-[16px] font-semibold tabular-nums")}>{brl(x.comissao)}</span>
                       {x.statusComissao === "atrasada" ? <Badge tone="negative">Atrasada</Badge> : <Badge tone="pending">A receber</Badge>}
                     </div>
                     <Chevron />

@@ -48,7 +48,9 @@ function MarcarRecebido({ r, hoje, aoConcluir }: { r: Recebimento; hoje: string;
       <div className="rounded-[14px] bg-surface-2">
         <FieldGroup>
           <Field label="Recebido em" name="data_recebida" type="date" required defaultValue={hoje} className="[color-scheme:dark]" />
-          <MoneyField label="Valor recebido" name="valor_recebido" value={valor} onChange={setValor} />
+          <div className="sensivel">
+            <MoneyField label="Valor recebido" name="valor_recebido" value={valor} onChange={setValor} />
+          </div>
           <SelectField label="Forma" name="forma" defaultValue="pix" options={FORMAS} />
         </FieldGroup>
       </div>
@@ -71,7 +73,7 @@ function LinhaRecebimento({ r, hoje }: { r: Recebimento; hoje: string }) {
       <div className="flex items-center gap-3 px-4 py-3.5 md:px-5">
         <div className="min-w-0 flex-1">
           <div className="text-[16px] font-medium">
-            {recebido ? <span className="text-positive">+{brl(r.valorRecebido ?? r.valorPrevisto)}</span> : brl(r.valorPrevisto)}
+            {recebido ? <span className="sensivel text-positive">+{brl(r.valorRecebido ?? r.valorPrevisto)}</span> : <span className="sensivel">{brl(r.valorPrevisto)}</span>}
           </div>
           <div className="text-[13px] text-label-2">
             {r.pagador}.{" "}
@@ -130,7 +132,9 @@ function NovaParcela({ vendaId, hoje, sugestao, aoConcluir }: { vendaId: string;
       <Segmented name="pagador_tipo" options={PAGADORES} value={pagador} onChange={setPagador} />
       <FieldGroup>
         {pagador === "outro" && <Field label="Nome de quem paga" name="pagador_nome" autoComplete="off" />}
-        <MoneyField label="Valor" name="valor" required value={valor} onChange={setValor} />
+        <div className="sensivel">
+          <MoneyField label="Valor" name="valor" required value={valor} onChange={setValor} />
+        </div>
         <Field label="Previsão de pagamento" name="data_prevista" type="date" required defaultValue={hoje} className="[color-scheme:dark]" />
       </FieldGroup>
       <FormMessage erro={estado.erro} />
@@ -161,7 +165,7 @@ export function Recebimentos({ vendaId, itens, comissao, hoje }: { vendaId: stri
 
       {comissao > 0 && previsto !== comissao && (
         <p className="mt-2 px-1 text-[13px] text-pending">
-          As parcelas somam {brl(previsto)}, mas a comissão da venda é {brl(comissao)}.
+          As parcelas somam <span className="sensivel">{brl(previsto)}</span>, mas a comissão da venda é <span className="sensivel">{brl(comissao)}</span>.
         </p>
       )}
 

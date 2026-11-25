@@ -3,7 +3,7 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hojeISO, type StatusComissao, type Venda } from "@/lib/vendas";
-import type { SerieModelo } from "@/lib/plano";
+import { normalizarNome, type SerieModelo } from "@/lib/plano";
 
 /** Usuário logado, perfil e tenant. Redireciona para /entrar se não houver sessão. */
 export const getContexto = cache(async () => {
@@ -153,7 +153,7 @@ export const obterVenda = cache(async (id: string) => {
   const { data, error } = await supabase
     .from("vendas")
     .select(
-      `id, tipo, status, unidade, construtora_id, imovel_descricao, valor_venda_centavos, data_venda, comissao_percentual, comissao_centavos, observacoes,
+      `id, tipo, status, unidade, construtora_id, imovel_descricao, valor_venda_centavos, data_venda, comissao_percentual, comissao_centavos, observacoes, banco_financiamento,
        cliente:clientes(id, nome, telefone),
        empreendimento:empreendimentos(nome),
        construtora:construtoras(nome),
@@ -173,26 +173,101 @@ export const obterVenda = cache(async (id: string) => {
   };
 });
 
-/** Modelos de plano de pagamento do tenant; os da construtora informada vêm primeiro. */
-export const listarModelos = cache(async (construtoraId: string | null) => {
+/**
+ * Modelos de plano de pagamento: os do tenant e os do sistema (tenant_id nulo) cuja
+ * construtora_nome bate com o nome da construtora da venda (sem acento e sem caixa).
+ * Os da construtora informada vêm primeiro.
+ */
+export const listarModelos = cache(async (construtoraId: string | null, construtoraNome?: string | null) => {
   const { supabase, tenant } = await getContexto();
-  const { data, error } = await supabase
-    .from("modelos_pagamento")
-    .select("id, nome, construtora_id, series, construtora:construtoras(nome)")
-    .eq("tenant_id", tenant.id)
-    .order("nome");
-  if (error) throw error;
-  return data
-    .map((m) => ({
+  const alvo = construtoraNome ? normalizarNome(construtoraNome) : null;
+  const [doTenant, doSistema] = await Promise.all([
+    supabase
+      .from("modelos_pagamento")
+      .select("id, nome, descricao, construtora_id, series, construtora:construtoras(nome)")
+      .eq("tenant_id", tenant.id)
+      .order("nome"),
+    alvo
+      ? supabase.from("modelos_pagamento").select("id, nome, descricao, construtora_nome, series").is("tenant_id", null).not("construtora_nome", "is", null).order("nome")
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (doTenant.error) throw doTenant.error;
+  if (doSistema.error) throw doSistema.error;
+  const modelos = [
+    ...doTenant.data.map((m) => ({
       id: m.id,
       nome: m.nome,
+      descricao: m.descricao,
       construtora: m.construtora?.nome ?? null,
       daConstrutora: construtoraId != null && m.construtora_id === construtoraId,
+      sistema: false,
       series: m.series as unknown as SerieModelo[],
-    }))
-    .sort((a, b) => Number(b.daConstrutora) - Number(a.daConstrutora));
+    })),
+    ...(doSistema.data ?? [])
+      .filter((m) => m.construtora_nome && normalizarNome(m.construtora_nome) === alvo)
+      .map((m) => ({
+        id: m.id,
+        nome: m.nome,
+        descricao: m.descricao,
+        construtora: m.construtora_nome,
+        daConstrutora: true,
+        sistema: true,
+        series: m.series as unknown as SerieModelo[],
+      })),
+  ];
+  // Da construtora primeiro (os do corretor antes dos do sistema); a ordem por nome se mantém.
+  const peso = (m: (typeof modelos)[number]) => (m.daConstrutora ? (m.sistema ? 1 : 0) : 2);
+  return modelos.sort((a, b) => peso(a) - peso(b));
 });
 export type Modelo = Awaited<ReturnType<typeof listarModelos>>[number];
+
+/**
+ * Só o que o cliente pode ver da venda, para o resumo da proposta: sem comissão e sem recebimentos.
+ * 404 se não existir no tenant.
+ */
+export const obterResumoVenda = cache(async (id: string) => {
+  if (!uuid(id)) notFound();
+  const { supabase, tenant, perfil } = await getContexto();
+  const { data, error } = await supabase
+    .from("vendas")
+    .select(
+      `id, status, unidade, imovel_descricao, valor_venda_centavos, data_venda, banco_financiamento,
+       cliente:clientes(nome),
+       empreendimento:empreendimentos(nome),
+       construtora:construtoras(nome),
+       plano_series(id, tipo, descricao, quantidade, valor_total_centavos, primeiro_vencimento, intervalo_meses, ordem, criado_em)`,
+    )
+    .eq("tenant_id", tenant.id)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) notFound();
+  const series = [...data.plano_series]
+    .sort((a, b) => a.ordem - b.ordem || a.criado_em.localeCompare(b.criado_em))
+    .map((s) => ({
+      id: s.id,
+      tipo: s.tipo,
+      descricao: s.descricao,
+      quantidade: s.quantidade,
+      valor_total_centavos: s.valor_total_centavos,
+      primeiro_vencimento: s.primeiro_vencimento,
+      intervalo_meses: s.intervalo_meses,
+    }));
+  return {
+    id: data.id,
+    proposta: data.status === "proposta",
+    cliente: data.cliente?.nome ?? null,
+    imovel: data.empreendimento?.nome ?? data.imovel_descricao,
+    unidade: data.unidade,
+    construtora: data.construtora?.nome ?? null,
+    valorVenda: data.valor_venda_centavos,
+    dataVenda: data.data_venda,
+    banco: data.banco_financiamento,
+    series,
+    corretor: { nome: perfil.nome, creci: perfil.creci, telefone: perfil.telefone },
+    empresa: tenant.nome,
+  };
+});
 
 export type VendaCompleta = Awaited<ReturnType<typeof obterVenda>>;
 export { TIPO_LABEL, PAGADOR_LABEL };

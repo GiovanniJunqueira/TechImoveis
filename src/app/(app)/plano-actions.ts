@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getContexto } from "@/lib/dal";
-import { PADRAO_SERIE, TIPOS_SERIE, modeloParaSeries, seriesParaModelo, type SerieModelo, type TipoSerie } from "@/lib/plano";
+import { PADRAO_SERIE, TIPOS_SERIE, seriesParaModelo, validarLinhasPlano, type TipoSerie } from "@/lib/plano";
 import type { EstadoForm } from "@/app/(auth)/actions";
 
 // Plano de pagamento do cliente (séries) e modelos por construtora.
@@ -59,24 +60,48 @@ export async function excluirSerie(id: string): Promise<EstadoForm> {
   const { supabase, tenant } = await getContexto();
   const { data } = await supabase.from("plano_series").delete().eq("tenant_id", tenant.id).eq("id", id).select("venda_id").maybeSingle();
   if (!data) return { erro: "Não foi possível excluir." };
-  revalidatePath(`/vendas/${data.venda_id}`);
+  revalidatePath(`/vendas/${data.venda_id}`, "layout");
   return {};
 }
 
-/** Troca o plano da venda pelo do modelo. Insere o novo antes de apagar o antigo, para não perder nada se falhar. */
-export async function aplicarModelo(vendaId: string, modeloId: string): Promise<EstadoForm> {
+/**
+ * Substitui o plano inteiro da venda pelas linhas do editor ("Montar plano").
+ * Recebe as linhas como JSON no campo `series` e valida tudo aqui. Sem transação no
+ * cliente do Supabase: insere as novas primeiro e só depois apaga as antigas, para
+ * não perder o plano se algo falhar no meio.
+ */
+export async function salvarPlano(vendaId: string, _: EstadoForm, form: FormData): Promise<EstadoForm> {
+  let bruto: unknown;
+  try {
+    bruto = JSON.parse(texto(form, "series") || "null");
+  } catch {
+    return { erro: "Plano inválido." };
+  }
+  const validado = validarLinhasPlano(bruto);
+  if ("erro" in validado) return { erro: validado.erro };
+  const banco = texto(form, "banco").slice(0, 60) || null;
+
   const { supabase, tenant, venda } = await vendaDoTenant(vendaId);
   if (!venda) return { erro: "Venda não encontrada." };
-  const { data: modelo } = await supabase.from("modelos_pagamento").select("series").eq("tenant_id", tenant.id).eq("id", modeloId).maybeSingle();
-  if (!modelo) return { erro: "Modelo não encontrado." };
+  const { data: antigas, error: erroLer } = await supabase.from("plano_series").select("id").eq("tenant_id", tenant.id).eq("venda_id", vendaId);
+  if (erroLer) return { erro: "Não foi possível salvar o plano." };
 
-  const { data: antigas } = await supabase.from("plano_series").select("id").eq("tenant_id", tenant.id).eq("venda_id", vendaId);
-  const novas = modeloParaSeries(modelo.series as unknown as SerieModelo[], venda.valor_venda_centavos, venda.data_venda).filter((s) => s.valor_total_centavos > 0);
-  if (!novas.length) return { erro: "O modelo está vazio." };
-  const { error } = await supabase.from("plano_series").insert(novas.map((s) => ({ ...s, tenant_id: tenant.id, venda_id: vendaId })));
-  if (error) return { erro: "Não foi possível aplicar o modelo." };
+  const { error } = await supabase.from("plano_series").insert(
+    validado.linhas.map((l, ordem) => ({
+      tenant_id: tenant.id,
+      venda_id: vendaId,
+      tipo: l.tipo,
+      descricao: l.descricao,
+      quantidade: l.quantidade,
+      valor_total_centavos: l.valor_parcela_centavos * l.quantidade,
+      primeiro_vencimento: l.primeiro_vencimento,
+      intervalo_meses: l.intervalo_meses,
+      ordem,
+    })),
+  );
+  if (error) return { erro: "Não foi possível salvar o plano." };
   if (antigas?.length) {
-    await supabase
+    const { error: erroApagar } = await supabase
       .from("plano_series")
       .delete()
       .eq("tenant_id", tenant.id)
@@ -84,9 +109,21 @@ export async function aplicarModelo(vendaId: string, modeloId: string): Promise<
         "id",
         antigas.map((a) => a.id),
       );
+    if (erroApagar) return { erro: "O plano novo foi salvo, mas o antigo não foi apagado. Confira a venda e exclua as linhas repetidas." };
   }
-  revalidatePath(`/vendas/${vendaId}`);
-  return { aviso: "Modelo aplicado." };
+  await supabase.from("vendas").update({ banco_financiamento: banco }).eq("tenant_id", tenant.id).eq("id", vendaId);
+  revalidatePath(`/vendas/${vendaId}`, "layout");
+  redirect(`/vendas/${vendaId}`);
+}
+
+/** Banco do financiamento, editado direto na venda. */
+export async function salvarBanco(vendaId: string, banco: string): Promise<EstadoForm> {
+  const { supabase, tenant } = await getContexto();
+  const valor = banco.trim().slice(0, 60) || null;
+  const { data } = await supabase.from("vendas").update({ banco_financiamento: valor }).eq("tenant_id", tenant.id).eq("id", vendaId).select("id").maybeSingle();
+  if (!data) return { erro: "Não foi possível salvar o banco." };
+  revalidatePath(`/vendas/${vendaId}`, "layout");
+  return {};
 }
 
 /** Salva o plano atual da venda como modelo da construtora dela (em percentuais do valor). */

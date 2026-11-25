@@ -172,3 +172,64 @@ export function modeloParaSeries(modelo: SerieModelo[], valorVenda: number, data
   // Séries com valor 0 continuam na lista: são as que o corretor ainda vai preencher.
   return series;
 }
+
+/** Nome comparável: sem acento, minúsculo e sem espaços sobrando (ex.: "MRV  Engenharia" = "mrv engenharia"). */
+export function normalizarNome(nome: string) {
+  return nome.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Sugestões para o banco do financiamento. */
+export const BANCOS = ["Caixa", "Banco do Brasil", "Itaú", "Bradesco", "Santander"];
+
+/** "todo mês", "a cada 6 meses", "todo ano" (vazio para parcela única). */
+export function intervaloTexto(meses: number) {
+  return meses === 1 ? "todo mês" : meses === 12 ? "todo ano" : meses > 0 ? `a cada ${meses} meses` : "";
+}
+
+/** Linha do editor de plano, como vai para o servidor: o valor é o de CADA parcela. */
+export type LinhaPlano = {
+  tipo: TipoSerie;
+  descricao: string | null;
+  quantidade: number;
+  valor_parcela_centavos: number;
+  primeiro_vencimento: string | null;
+  intervalo_meses: number;
+};
+
+const dataISOValida = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && v >= "1990-01-01" && v <= "2100-12-31";
+const MAX_LINHAS = 60;
+const MAX_CENTAVOS = 100_000_000_000_00; // R$ 100 bilhões: só para barrar lixo
+
+/**
+ * Valida as linhas do plano (vindas do cliente como JSON). Cada erro cita a linha,
+ * para o corretor achar o que falta preencher.
+ */
+export function validarLinhasPlano(bruto: unknown): { erro: string } | { linhas: LinhaPlano[] } {
+  if (!Array.isArray(bruto)) return { erro: "Plano inválido." };
+  if (bruto.length === 0) return { erro: "Adicione ao menos uma parcela ao plano." };
+  if (bruto.length > MAX_LINHAS) return { erro: `O plano pode ter no máximo ${MAX_LINHAS} linhas.` };
+  const linhas: LinhaPlano[] = [];
+  for (const [i, item] of bruto.entries()) {
+    const l = (item ?? {}) as Record<string, unknown>;
+    const tipo = l.tipo as TipoSerie;
+    if (!TIPOS_SERIE.includes(tipo)) return { erro: `Linha ${i + 1}: tipo de parcela inválido.` };
+    const nome = `Linha ${i + 1} (${typeof l.descricao === "string" && l.descricao.trim() ? l.descricao.trim() : TIPO_SERIE_LABEL[tipo]})`;
+    const descricao = typeof l.descricao === "string" ? l.descricao.trim().slice(0, 80) || null : null;
+    const quantidade = l.quantidade;
+    if (typeof quantidade !== "number" || !Number.isInteger(quantidade) || quantidade < 1 || quantidade > 600)
+      return { erro: `${nome}: a quantidade de parcelas deve ser de 1 a 600.` };
+    const valor = l.valor_parcela_centavos;
+    if (typeof valor !== "number" || !Number.isInteger(valor) || valor <= 0) return { erro: `${nome}: informe o valor da parcela.` };
+    if (valor * quantidade > MAX_CENTAVOS) return { erro: `${nome}: valor alto demais.` };
+    const venc = l.primeiro_vencimento;
+    if (venc != null && venc !== "" && (typeof venc !== "string" || !dataISOValida(venc))) return { erro: `${nome}: data de vencimento inválida.` };
+    const primeiro = typeof venc === "string" && venc ? venc : null;
+    if (quantidade > 1 && !primeiro) return { erro: `${nome}: informe o primeiro vencimento.` };
+    const intervalo = quantidade > 1 ? l.intervalo_meses : 0;
+    if (typeof intervalo !== "number" || !Number.isInteger(intervalo) || intervalo < 0 || intervalo > 60)
+      return { erro: `${nome}: frequência inválida.` };
+    if (quantidade > 1 && intervalo === 0) return { erro: `${nome}: escolha a frequência das parcelas.` };
+    linhas.push({ tipo, descricao, quantidade, valor_parcela_centavos: valor, primeiro_vencimento: primeiro, intervalo_meses: intervalo });
+  }
+  return { linhas };
+}

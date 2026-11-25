@@ -4,10 +4,11 @@ import { Pencil } from "lucide-react";
 import { Badge, Card, Chevron, SectionTitle, VoltarLink, heroNumber } from "@/components/ui";
 import { BotaoExcluir } from "@/components/botao-excluir";
 import { excluirVenda } from "../../cadastro-actions";
-import { PAGADOR_LABEL, TIPO_LABEL, obterVenda } from "@/lib/dal";
+import { PAGADOR_LABEL, TIPO_LABEL, listarModelos, obterVenda } from "@/lib/dal";
 import { hojeISO } from "@/lib/vendas";
 import { brl, dataCurta, iniciais } from "@/lib/format";
 import { Recebimentos } from "./recebimentos";
+import { Plano } from "./plano";
 
 export async function generateMetadata({ params }: PageProps<"/vendas/[id]">): Promise<Metadata> {
   const { id } = await params;
@@ -33,6 +34,8 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
 export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
   const { id } = await params;
   const v = await obterVenda(id);
+  const modelos = await listarModelos(v.construtora_id);
+  const hoje = hojeISO();
   const status = STATUS[v.status];
   const imovel = v.empreendimento?.nome ?? v.imovel_descricao;
   const recebido = v.recebimentos.reduce((s, r) => s + (r.valor_recebido_centavos ?? 0), 0);
@@ -87,7 +90,7 @@ export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
       <Recebimentos
         vendaId={v.id}
         comissao={v.comissao_centavos}
-        hoje={hojeISO()}
+        hoje={hoje}
         itens={v.recebimentos.map((r) => ({
           id: r.id,
           pagador: r.pagador_nome ?? PAGADOR_LABEL[r.pagador_tipo],
@@ -97,6 +100,16 @@ export default async function VendaPage({ params }: PageProps<"/vendas/[id]">) {
           dataRecebida: r.data_recebida,
           forma: r.forma,
         }))}
+      />
+
+      <SectionTitle>Plano de pagamento do cliente</SectionTitle>
+      <Plano
+        vendaId={v.id}
+        valorVenda={v.valor_venda_centavos}
+        series={v.plano_series}
+        modelos={modelos}
+        construtora={v.construtora?.nome ?? null}
+        hoje={hoje}
       />
 
       {v.observacoes && (

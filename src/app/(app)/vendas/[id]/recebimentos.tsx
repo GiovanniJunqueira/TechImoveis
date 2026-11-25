@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import { Check, Plus, RotateCcw } from "lucide-react";
 import { LixeiraConfirmar } from "@/components/botao-excluir";
+import { Expande } from "@/components/expande";
 import { adicionarRecebimento, desfazerRecebido, excluirRecebimento, marcarRecebido } from "../../cadastro-actions";
 import type { EstadoForm } from "@/app/(auth)/actions";
 import { Field, FieldGroup, FormMessage, FormSemReset, MoneyField, Segmented, SelectField, SubmitButton } from "@/components/form";
@@ -35,23 +35,6 @@ const PAGADORES = [
   { value: "imobiliaria", label: "Imobiliária" },
   { value: "outro", label: "Outro" },
 ];
-
-const ease = [0.32, 0.72, 0, 1] as const;
-const Expande = ({ aberto, children }: { aberto: boolean; children: React.ReactNode }) => (
-  <AnimatePresence initial={false}>
-    {aberto && (
-      <motion.div
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: "auto", opacity: 1 }}
-        exit={{ height: 0, opacity: 0 }}
-        transition={{ duration: 0.32, ease }}
-        className="overflow-hidden"
-      >
-        {children}
-      </motion.div>
-    )}
-  </AnimatePresence>
-);
 
 function MarcarRecebido({ r, hoje, aoConcluir }: { r: Recebimento; hoje: string; aoConcluir: () => void }) {
   const [valor, setValor] = useState(r.valorPrevisto);

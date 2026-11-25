@@ -3,6 +3,7 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hojeISO, type StatusComissao, type Venda } from "@/lib/vendas";
+import type { SerieModelo } from "@/lib/plano";
 
 /** Usuário logado, perfil e tenant. Redireciona para /entrar se não houver sessão. */
 export const getContexto = cache(async () => {
@@ -152,20 +153,46 @@ export const obterVenda = cache(async (id: string) => {
   const { data, error } = await supabase
     .from("vendas")
     .select(
-      `id, tipo, status, unidade, imovel_descricao, valor_venda_centavos, data_venda, comissao_percentual, comissao_centavos, observacoes,
+      `id, tipo, status, unidade, construtora_id, imovel_descricao, valor_venda_centavos, data_venda, comissao_percentual, comissao_centavos, observacoes,
        cliente:clientes(id, nome, telefone),
        empreendimento:empreendimentos(nome),
        construtora:construtoras(nome),
        imobiliaria:imobiliarias(nome),
-       recebimentos(id, pagador_tipo, pagador_nome, valor_previsto_centavos, data_prevista, valor_recebido_centavos, data_recebida, forma)`,
+       recebimentos(id, pagador_tipo, pagador_nome, valor_previsto_centavos, data_prevista, valor_recebido_centavos, data_recebida, forma),
+       plano_series(id, tipo, descricao, quantidade, valor_total_centavos, primeiro_vencimento, intervalo_meses, ordem, criado_em)`,
     )
     .eq("tenant_id", tenant.id)
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
   if (!data) notFound();
-  return { ...data, recebimentos: [...data.recebimentos].sort((a, b) => a.data_prevista.localeCompare(b.data_prevista)) };
+  return {
+    ...data,
+    recebimentos: [...data.recebimentos].sort((a, b) => a.data_prevista.localeCompare(b.data_prevista)),
+    plano_series: [...data.plano_series].sort((a, b) => a.ordem - b.ordem || a.criado_em.localeCompare(b.criado_em)),
+  };
 });
+
+/** Modelos de plano de pagamento do tenant; os da construtora informada vêm primeiro. */
+export const listarModelos = cache(async (construtoraId: string | null) => {
+  const { supabase, tenant } = await getContexto();
+  const { data, error } = await supabase
+    .from("modelos_pagamento")
+    .select("id, nome, construtora_id, series, construtora:construtoras(nome)")
+    .eq("tenant_id", tenant.id)
+    .order("nome");
+  if (error) throw error;
+  return data
+    .map((m) => ({
+      id: m.id,
+      nome: m.nome,
+      construtora: m.construtora?.nome ?? null,
+      daConstrutora: construtoraId != null && m.construtora_id === construtoraId,
+      series: m.series as unknown as SerieModelo[],
+    }))
+    .sort((a, b) => Number(b.daConstrutora) - Number(a.daConstrutora));
+});
+export type Modelo = Awaited<ReturnType<typeof listarModelos>>[number];
 
 export type VendaCompleta = Awaited<ReturnType<typeof obterVenda>>;
 export { TIPO_LABEL, PAGADOR_LABEL };

@@ -161,6 +161,32 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"modelos_pagamento": {
+                  Row: {
+                    "construtora_id": string | null,"criado_em": string,"id": string,"nome": string,"series": NonNullable<Json>,"tenant_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "construtora_id"?: string | null,"criado_em"?: string,"id"?: string,"nome": string,"series"?: NonNullable<Json>,"tenant_id"?: string
+                  }
+                  Update: {
+                    "construtora_id"?: string | null,"criado_em"?: string,"id"?: string,"nome"?: string,"series"?: NonNullable<Json>,"tenant_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "modelos_pagamento_tenant_id_construtora_id_fkey"
+      columns: ["tenant_id","construtora_id"]
+isOneToOne: false
+      referencedRelation: "construtoras"
+      referencedColumns: ["tenant_id","id"]
+    },{
+      foreignKeyName: "modelos_pagamento_tenant_id_fkey"
+      columns: ["tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"perfis": {
                   Row: {
                     "atualizado_em": string,"creci": string | null,"foto_url": string | null,"nome": string,"telefone": string | null,"user_id": string
@@ -174,6 +200,32 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"plano_series": {
+                  Row: {
+                    "criado_em": string,"descricao": string | null,"id": string,"intervalo_meses": number,"ordem": number,"primeiro_vencimento": string | null,"quantidade": number,"tenant_id": string,"tipo": Database["public"]['Enums']["tipo_serie"],"valor_total_centavos": number,"venda_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "criado_em"?: string,"descricao"?: string | null,"id"?: string,"intervalo_meses"?: number,"ordem"?: number,"primeiro_vencimento"?: string | null,"quantidade"?: number,"tenant_id"?: string,"tipo": Database["public"]['Enums']["tipo_serie"],"valor_total_centavos": number,"venda_id": string
+                  }
+                  Update: {
+                    "criado_em"?: string,"descricao"?: string | null,"id"?: string,"intervalo_meses"?: number,"ordem"?: number,"primeiro_vencimento"?: string | null,"quantidade"?: number,"tenant_id"?: string,"tipo"?: Database["public"]['Enums']["tipo_serie"],"valor_total_centavos"?: number,"venda_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "plano_series_tenant_id_fkey"
+      columns: ["tenant_id"]
+isOneToOne: false
+      referencedRelation: "tenants"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "plano_series_tenant_id_venda_id_fkey"
+      columns: ["tenant_id","venda_id"]
+isOneToOne: false
+      referencedRelation: "vendas"
+      referencedColumns: ["tenant_id","id"]
+    }
                   ]
                 },"recebimentos": {
                   Row: {
@@ -268,7 +320,7 @@ isOneToOne: false
             [_ in never]: never
           }
           Enums: {
-            "forma_pagamento": "pix"|"ted"|"boleto"|"dinheiro"|"cheque"|"outro","origem_documento": "corretor"|"cliente","pagador_tipo": "cliente"|"construtora"|"imobiliaria"|"outro","papel_membro": "dono"|"corretor"|"gestor","status_documento": "ok"|"pendente"|"recusado","status_venda": "proposta"|"fechada"|"distrato","tipo_venda": "lancamento"|"pronto"|"revenda"
+            "forma_pagamento": "pix"|"ted"|"boleto"|"dinheiro"|"cheque"|"outro","origem_documento": "corretor"|"cliente","pagador_tipo": "cliente"|"construtora"|"imobiliaria"|"outro","papel_membro": "dono"|"corretor"|"gestor","status_documento": "ok"|"pendente"|"recusado","status_venda": "proposta"|"fechada"|"distrato","tipo_serie": "sinal"|"mensal"|"intercalada"|"anual"|"chaves"|"financiamento"|"outro","tipo_venda": "lancamento"|"pronto"|"revenda"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -388,7 +440,7 @@ export const Constants = {
           }
         },"public": {
           Enums: {
-            "forma_pagamento": ["pix", "ted", "boleto", "dinheiro", "cheque", "outro"],"origem_documento": ["corretor", "cliente"],"pagador_tipo": ["cliente", "construtora", "imobiliaria", "outro"],"papel_membro": ["dono", "corretor", "gestor"],"status_documento": ["ok", "pendente", "recusado"],"status_venda": ["proposta", "fechada", "distrato"],"tipo_venda": ["lancamento", "pronto", "revenda"]
+            "forma_pagamento": ["pix", "ted", "boleto", "dinheiro", "cheque", "outro"],"origem_documento": ["corretor", "cliente"],"pagador_tipo": ["cliente", "construtora", "imobiliaria", "outro"],"papel_membro": ["dono", "corretor", "gestor"],"status_documento": ["ok", "pendente", "recusado"],"status_venda": ["proposta", "fechada", "distrato"],"tipo_serie": ["sinal", "mensal", "intercalada", "anual", "chaves", "financiamento", "outro"],"tipo_venda": ["lancamento", "pronto", "revenda"]
           }
         }
 } as const

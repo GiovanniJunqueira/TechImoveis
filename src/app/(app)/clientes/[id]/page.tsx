@@ -1,11 +1,12 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { FileText, Mail, MessageCircle, Pencil, Phone, Plus, Upload } from "lucide-react";
-import { Badge, Card, Money, PrimaryButton, SectionTitle, VoltarLink } from "@/components/ui";
+import { Mail, MessageCircle, Pencil, Phone, Plus } from "lucide-react";
+import { Card, Money, PrimaryButton, SectionTitle, VoltarLink } from "@/components/ui";
 import { LinhaVenda } from "@/components/vendas-por-ano";
 import { BotaoExcluir } from "@/components/botao-excluir";
 import { excluirCliente } from "../../cadastro-actions";
 import { obterCliente } from "@/lib/dal";
+import { Documentos } from "./documentos";
 import { dataCurta, iniciais, mascaraCpf, mascaraTelefone, plural } from "@/lib/format";
 
 export async function generateMetadata({ params }: PageProps<"/clientes/[id]">): Promise<Metadata> {
@@ -90,32 +91,7 @@ export default async function ClientePage({ params }: PageProps<"/clientes/[id]"
         <Plus className="size-5" /> Nova venda para {c.nome.split(" ")[0]}
       </PrimaryButton>
 
-      <SectionTitle>Documentos</SectionTitle>
-      {c.documentos.length > 0 ? (
-        <Card className="divide-y divide-separator overflow-hidden">
-          {c.documentos.map((d) => (
-            <div key={d.id} className="flex items-center gap-3 px-4 py-3 md:px-5">
-              <FileText className="size-5 shrink-0 text-label-2" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[16px]">{d.nome}</div>
-                <div className="text-[13px] text-label-2">
-                  {d.pasta}, {dataCurta(d.criado_em)}
-                  {d.enviado_por === "cliente" && ", enviado pelo cliente"}
-                </div>
-              </div>
-              {d.status === "pendente" && <Badge tone="pending">Revisar</Badge>}
-              {d.status === "recusado" && <Badge tone="negative">Recusado</Badge>}
-            </div>
-          ))}
-        </Card>
-      ) : (
-        <Card className="flex items-center gap-3 px-5 py-5">
-          <Upload className="size-5 shrink-0 text-label-2" />
-          <div className="text-[15px] text-label-2">
-            Nenhum documento ainda. O envio de arquivos (RG, comprovantes, contrato) chega na próxima etapa.
-          </div>
-        </Card>
-      )}
+      <Documentos clienteId={c.id} documentos={c.documentos} />
 
       {c.vendas.length === 0 && (
         <BotaoExcluir

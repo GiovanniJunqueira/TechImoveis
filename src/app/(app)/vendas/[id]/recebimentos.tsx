@@ -2,7 +2,8 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Check, Plus, RotateCcw } from "lucide-react";
+import { LixeiraConfirmar } from "@/components/botao-excluir";
 import { adicionarRecebimento, desfazerRecebido, excluirRecebimento, marcarRecebido } from "../../cadastro-actions";
 import type { EstadoForm } from "@/app/(auth)/actions";
 import { Field, FieldGroup, FormMessage, FormSemReset, MoneyField, Segmented, SelectField, SubmitButton } from "@/components/form";
@@ -121,17 +122,9 @@ function LinhaRecebimento({ r, hoje }: { r: Recebimento; hoje: string }) {
             <Check className="size-4" /> {aberto ? "Cancelar" : "Marcar como recebido"}
           </button>
         )}
-        <button
-          type="button"
-          aria-label="Excluir parcela"
-          disabled={pendente}
-          onClick={() => {
-            if (confirm("Excluir esta parcela da comissão?")) iniciar(async () => void (await excluirRecebimento(r.id)));
-          }}
-          className="ml-auto grid size-9 place-items-center rounded-full bg-surface-2 text-label-2 transition active:scale-[0.97] disabled:opacity-60"
-        >
-          <Trash2 className="size-4" />
-        </button>
+        <div className="ml-auto">
+          <LixeiraConfirmar rotulo="Excluir parcela" pendente={pendente} aoConfirmar={() => iniciar(async () => void (await excluirRecebimento(r.id)))} />
+        </div>
       </div>
 
       <Expande aberto={aberto && !recebido}>

@@ -136,7 +136,7 @@ export const obterCliente = cache(async (id: string) => {
     listarVendas(),
     supabase
       .from("documentos")
-      .select("id, nome, pasta, status, enviado_por, criado_em")
+      .select("id, nome, pasta, status, enviado_por, criado_em, mime, tamanho_bytes")
       .eq("tenant_id", tenant.id)
       .eq("cliente_id", id)
       .order("criado_em", { ascending: false }),

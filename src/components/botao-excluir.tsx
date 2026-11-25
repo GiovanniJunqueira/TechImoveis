@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import type { EstadoForm } from "@/app/(auth)/actions";
 import { cn } from "@/components/ui";
@@ -61,5 +61,34 @@ export function BotaoExcluir({
       </div>
       {erro && <p className="text-center text-[13px] text-negative">{erro}</p>}
     </div>
+  );
+}
+
+/** Lixeira compacta: o primeiro toque vira "Excluir?" em vermelho por 3 s; o segundo exclui. */
+export function LixeiraConfirmar({ rotulo, aoConfirmar, pendente }: { rotulo: string; aoConfirmar: () => void; pendente?: boolean }) {
+  const [armado, setArmado] = useState(false);
+  useEffect(() => {
+    if (!armado) return;
+    const t = setTimeout(() => setArmado(false), 3000);
+    return () => clearTimeout(t);
+  }, [armado]);
+
+  return (
+    <button
+      type="button"
+      aria-label={armado ? `Confirmar: ${rotulo}` : rotulo}
+      disabled={pendente}
+      onClick={() => {
+        if (!armado) return setArmado(true);
+        setArmado(false);
+        aoConfirmar();
+      }}
+      className={cn(
+        "flex h-9 shrink-0 items-center justify-center rounded-full transition active:scale-[0.96] disabled:opacity-50",
+        armado ? "bg-negative px-3 text-[14px] font-semibold text-white" : "w-9 bg-transparent text-label-3 hover:text-negative",
+      )}
+    >
+      {armado ? "Excluir?" : <Trash2 className="size-[18px]" />}
+    </button>
   );
 }

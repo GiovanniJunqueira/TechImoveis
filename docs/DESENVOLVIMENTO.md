@@ -5,7 +5,7 @@ Pré-requisitos: Node 22+, Docker Desktop rodando.
 ```bash
 npm install
 npm run db:start      # sobe o Supabase local (Postgres + Auth + Storage) no Docker
-cp .env.example .env.local   # preencha a publishable key mostrada pelo comando acima
+cp .env.example .env.local   # preencha a publishable key e as chaves S3 mostradas pelo comando acima
 npm run dev           # http://localhost:3000
 ```
 

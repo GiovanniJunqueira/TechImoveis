@@ -25,7 +25,7 @@
 | Next.js | Versão 16: `src/proxy.ts` (antigo middleware) renova a sessão; Cache Components desligado por enquanto (app todo atrás de login) |
 | Dev local | Supabase CLI no Docker (`npx supabase start`), migrações em `supabase/migrations` |
 | Banco, login | **Supabase** (Postgres + Auth). Isolamento multitenant via **Row Level Security** |
-| Arquivos | **Cloudflare R2** com URLs assinadas (upload/download direto do navegador, expiram em minutos) |
+| Arquivos | **Cloudflare R2** via API S3 (`aws4fetch`, leve e compatível com Workers). Upload e download passam pelo servidor (`/api/documentos`), que checa a permissão; arquivos nunca são públicos. No desenvolvimento, o Supabase Storage local faz o papel do R2 (mesma API S3). Limite de 20 MB por arquivo. |
 | Hospedagem | **Cloudflare Workers** (Next.js via OpenNext) — plano grátis permite uso comercial |
 | Mobile | Layout responsivo + **PWA** (instalável na tela inicial do celular) |
 | Validação | Zod + React Hook Form |

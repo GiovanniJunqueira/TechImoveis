@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getContexto } from "@/lib/dal";
 import { hojeISO } from "@/lib/vendas";
+import { apagarArquivo } from "@/lib/arquivos";
 import type { EstadoForm } from "@/app/(auth)/actions";
 
 // Cadastro e edição de clientes, vendas e recebimentos de comissão.
@@ -302,4 +303,20 @@ export async function adicionarRecebimento(vendaId: string, _: EstadoForm, form:
   if (error) return { erro: "Não foi possível adicionar a parcela." };
   revalidatePath("/", "layout");
   return { aviso: "Parcela adicionada." };
+}
+
+// ------------------------------------------------------------
+// Documentos
+// ------------------------------------------------------------
+
+export async function excluirDocumento(id: string): Promise<EstadoForm> {
+  const { supabase, tenant } = await getContexto();
+  const { data: doc } = await supabase.from("documentos").select("cliente_id, chave_arquivo").eq("tenant_id", tenant.id).eq("id", id).maybeSingle();
+  if (!doc) return { erro: "Documento não encontrado." };
+  const { error } = await supabase.from("documentos").delete().eq("tenant_id", tenant.id).eq("id", id);
+  if (error) return { erro: "Não foi possível excluir o documento." };
+  // Se o arquivo não apagar agora, o registro já saiu; a limpeza de órfãos pode ser feita depois.
+  await apagarArquivo(doc.chave_arquivo).catch((e) => console.error(e));
+  revalidatePath(`/clientes/${doc.cliente_id}`);
+  return {};
 }

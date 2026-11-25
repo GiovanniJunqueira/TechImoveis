@@ -135,7 +135,14 @@
     // The maximum file size allowed (e.g. "5MB", "500KB").
     "file_size_limit": "50MiB",
 
-    // Uncomment to configure local storage buckets
+    // Bucket local que faz o papel do Cloudflare R2 no desenvolvimento (acesso via S3).
+    "buckets": {
+      "documentos": {
+        "public": false,
+        "file_size_limit": "20MiB"
+      }
+    },
+    // Exemplo:
     // "buckets": {
     //   "images": {
     //     "public": false,

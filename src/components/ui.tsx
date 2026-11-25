@@ -1,4 +1,5 @@
-import { ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { ReactNode } from "react";
@@ -63,30 +64,31 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
   );
 }
 
-export function PrimaryButton({ children, className }: { children: ReactNode; className?: string }) {
+const botao = "flex h-[54px] w-full items-center justify-center gap-2 rounded-full text-[17px] font-semibold transition active:scale-[0.98]";
+
+/** Botão principal (link para outra tela). */
+export function PrimaryButton({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        "flex h-[54px] w-full items-center justify-center gap-2 rounded-full bg-accent text-[17px] font-semibold text-white transition active:scale-[0.98] active:opacity-80",
-        className,
-      )}
-    >
+    <Link href={href} className={cn(botao, "bg-accent text-white active:opacity-80", className)}>
       {children}
-    </button>
+    </Link>
   );
 }
 
-export function SecondaryButton({ children, className }: { children: ReactNode; className?: string }) {
+export function SecondaryButton({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        "flex h-[54px] w-full items-center justify-center gap-2 rounded-full bg-surface-2 text-[17px] font-semibold transition active:scale-[0.98] active:bg-surface-3",
-        className,
-      )}
-    >
+    <Link href={href} className={cn(botao, "bg-surface-2 active:bg-surface-3", className)}>
       {children}
-    </button>
+    </Link>
+  );
+}
+
+/** "‹ Voltar" no topo das telas de cadastro. */
+export function VoltarLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className="-ml-1.5 inline-flex items-center pt-4 text-[17px] text-accent md:pt-8">
+      <ChevronLeft className="size-6" />
+      {children}
+    </Link>
   );
 }

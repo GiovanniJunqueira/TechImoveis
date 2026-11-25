@@ -100,3 +100,21 @@ export const listarClientes = cache(async (): Promise<ClienteLista[]> => {
     pendentes: c.documentos.filter((d) => d.status === "pendente").length,
   }));
 });
+
+/** Listas para o formulário de nova venda. */
+export const opcoesVenda = cache(async () => {
+  const { supabase, tenant } = await getContexto();
+  const [clientes, construtoras, empreendimentos, imobiliarias] = await Promise.all([
+    supabase.from("clientes").select("id, nome").eq("tenant_id", tenant.id).order("nome"),
+    supabase.from("construtoras").select("nome").eq("tenant_id", tenant.id).order("nome"),
+    supabase.from("empreendimentos").select("nome, construtora:construtoras(nome)").eq("tenant_id", tenant.id).order("nome"),
+    supabase.from("imobiliarias").select("nome").eq("tenant_id", tenant.id).order("nome"),
+  ]);
+  for (const r of [clientes, construtoras, empreendimentos, imobiliarias]) if (r.error) throw r.error;
+  return {
+    clientes: clientes.data!,
+    construtoras: construtoras.data!.map((c) => c.nome),
+    empreendimentos: empreendimentos.data!.map((e) => ({ nome: e.nome, construtora: e.construtora?.nome ?? null })),
+    imobiliarias: imobiliarias.data!.map((i) => i.nome),
+  };
+});

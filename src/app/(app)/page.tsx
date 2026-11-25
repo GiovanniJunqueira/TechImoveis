@@ -86,10 +86,10 @@ export default async function InicioPage() {
       )}
 
       <div className="mt-8 flex flex-col gap-3">
-        <PrimaryButton>
+        <PrimaryButton href="/vendas/nova">
           <Plus className="size-5" /> Nova venda
         </PrimaryButton>
-        <SecondaryButton>
+        <SecondaryButton href="/clientes/novo">
           <UserPlus className="size-5" /> Novo cliente
         </SecondaryButton>
       </div>

@@ -52,7 +52,7 @@ export default async function ClientesPage() {
         </>
       )}
 
-      <PrimaryButton className="mt-6">
+      <PrimaryButton href="/clientes/novo" className="mt-6">
         <UserPlus className="size-5" /> Novo cliente
       </PrimaryButton>
     </>

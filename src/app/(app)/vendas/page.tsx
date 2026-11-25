@@ -31,7 +31,7 @@ export default async function VendasPage() {
         </>
       )}
 
-      <PrimaryButton className="mt-6">
+      <PrimaryButton href="/vendas/nova" className="mt-6">
         <Plus className="size-5" /> Nova venda
       </PrimaryButton>
     </>

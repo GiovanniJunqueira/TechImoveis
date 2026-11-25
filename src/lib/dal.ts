@@ -1,0 +1,102 @@
+import "server-only";
+import { cache } from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { hojeISO, type StatusComissao, type Venda } from "@/lib/vendas";
+
+/** Usuário logado, perfil e tenant. Redireciona para /entrar se não houver sessão. */
+export const getContexto = cache(async () => {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
+  if (!userId) redirect("/entrar");
+
+  const [{ data: perfil }, { data: membro }] = await Promise.all([
+    supabase.from("perfis").select("nome, creci, telefone").eq("user_id", userId).single(),
+    supabase
+      .from("membros_tenant")
+      .select("papel, tenant:tenants(id, nome, cor_destaque, logo_url)")
+      .eq("user_id", userId)
+      .order("criado_em")
+      .limit(1)
+      .single(),
+  ]);
+
+  if (!membro?.tenant) redirect("/entrar?erro=sem-conta");
+
+  return {
+    supabase,
+    userId,
+    email: (data?.claims?.email as string | undefined) ?? "",
+    perfil: perfil ?? { nome: "", creci: null, telefone: null },
+    papel: membro.papel,
+    tenant: membro.tenant,
+  };
+});
+
+const TIPO_LABEL = { lancamento: "Lançamento", pronto: "Pronto", revenda: "Revenda" } as const;
+const PAGADOR_LABEL = { cliente: "Cliente", construtora: "Construtora", imobiliaria: "Imobiliária", outro: "Outro" } as const;
+
+export const listarVendas = cache(async (): Promise<Venda[]> => {
+  const { supabase, tenant } = await getContexto();
+  const { data, error } = await supabase
+    .from("vendas")
+    .select(
+      `id, tipo, unidade, imovel_descricao, valor_venda_centavos, data_venda, comissao_centavos,
+       cliente:clientes(id, nome),
+       empreendimento:empreendimentos(nome),
+       construtora:construtoras(nome),
+       recebimentos(pagador_tipo, pagador_nome, valor_previsto_centavos, data_prevista, data_recebida)`,
+    )
+    .eq("tenant_id", tenant.id)
+    .neq("status", "distrato")
+    .order("data_venda", { ascending: false });
+  if (error) throw error;
+
+  const hoje = hojeISO();
+  return data.map((v) => {
+    const pendentes = v.recebimentos.filter((r) => !r.data_recebida).sort((a, b) => a.data_prevista.localeCompare(b.data_prevista));
+    const recebidos = v.recebimentos.filter((r) => r.data_recebida).sort((a, b) => b.data_recebida!.localeCompare(a.data_recebida!));
+    let status: StatusComissao = "a_receber";
+    if (v.recebimentos.length > 0 && pendentes.length === 0) status = "recebida";
+    else if (pendentes[0] && pendentes[0].data_prevista < hoje) status = "atrasada";
+    const ref = pendentes[0] ?? recebidos[0];
+
+    return {
+      id: v.id,
+      cliente: v.cliente?.nome ?? "—",
+      clienteId: v.cliente?.id ?? "",
+      empreendimento: v.empreendimento?.nome ?? v.imovel_descricao ?? "Imóvel",
+      construtora: v.construtora?.nome ?? "—",
+      unidade: v.unidade ?? "—",
+      tipo: TIPO_LABEL[v.tipo],
+      data: v.data_venda,
+      valorVenda: v.valor_venda_centavos,
+      comissao: v.comissao_centavos,
+      statusComissao: status,
+      pagador: ref ? (ref.pagador_nome ?? PAGADOR_LABEL[ref.pagador_tipo]) : "Cliente",
+      previsao: pendentes[0]?.data_prevista,
+      recebidoEm: status === "recebida" ? recebidos[0]?.data_recebida ?? undefined : undefined,
+    };
+  });
+});
+
+export type ClienteLista = { id: string; nome: string; telefone: string | null; documentos: number; pendentes: number; vendas: number };
+
+export const listarClientes = cache(async (): Promise<ClienteLista[]> => {
+  const { supabase, tenant } = await getContexto();
+  const { data, error } = await supabase
+    .from("clientes")
+    .select("id, nome, telefone, vendas(count), documentos(status)")
+    .eq("tenant_id", tenant.id)
+    .order("nome");
+  if (error) throw error;
+  return data.map((c) => ({
+    id: c.id,
+    nome: c.nome,
+    telefone: c.telefone,
+    vendas: c.vendas[0]?.count ?? 0,
+    documentos: c.documentos.length,
+    pendentes: c.documentos.filter((d) => d.status === "pendente").length,
+  }));
+});

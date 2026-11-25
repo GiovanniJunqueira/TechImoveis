@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Tira o indicador de dev de cima da barra de abas do celular
+  devIndicators: { position: "top-right" },
   turbopack: {
     rules: {
       "*.css": {

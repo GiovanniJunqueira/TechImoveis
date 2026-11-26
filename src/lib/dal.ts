@@ -50,7 +50,8 @@ export const listarVendas = cache(async (): Promise<Venda[]> => {
        recebimentos(pagador_tipo, pagador_nome, valor_previsto_centavos, data_prevista, data_recebida)`,
     )
     .eq("tenant_id", tenant.id)
-    .neq("status", "distrato")
+    // Só vendas FECHADAS entram em comissão, VGV e financeiro. Propostas ficam em listarPropostas.
+    .eq("status", "fechada")
     .order("data_venda", { ascending: false });
   if (error) throw error;
 
@@ -80,6 +81,29 @@ export const listarVendas = cache(async (): Promise<Venda[]> => {
       recebidoEm: status === "recebida" ? recebidos[0]?.data_recebida ?? undefined : undefined,
     };
   });
+});
+
+/** Proposta em andamento: só o que interessa ao cliente (sem comissão). */
+export type Proposta = { id: string; cliente: string; clienteId: string; imovel: string; construtora: string | null; valor: number; data: string };
+
+export const listarPropostas = cache(async (): Promise<Proposta[]> => {
+  const { supabase, tenant } = await getContexto();
+  const { data, error } = await supabase
+    .from("vendas")
+    .select("id, data_venda, valor_venda_centavos, imovel_descricao, unidade, cliente:clientes(id, nome), empreendimento:empreendimentos(nome), construtora:construtoras(nome)")
+    .eq("tenant_id", tenant.id)
+    .eq("status", "proposta")
+    .order("data_venda", { ascending: false });
+  if (error) throw error;
+  return data.map((v) => ({
+    id: v.id,
+    cliente: v.cliente?.nome ?? "—",
+    clienteId: v.cliente?.id ?? "",
+    imovel: [v.empreendimento?.nome ?? v.imovel_descricao ?? "Imóvel", v.unidade].filter(Boolean).join(", "),
+    construtora: v.construtora?.nome ?? null,
+    valor: v.valor_venda_centavos,
+    data: v.data_venda,
+  }));
 });
 
 export type ClienteLista = { id: string; nome: string; telefone: string | null; cpf: string | null; documentos: number; pendentes: number; vendas: number };
@@ -127,7 +151,7 @@ const uuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
 export const obterCliente = cache(async (id: string) => {
   if (!uuid(id)) notFound();
   const { supabase, tenant } = await getContexto();
-  const [{ data: cliente }, vendas, { data: documentos }] = await Promise.all([
+  const [{ data: cliente }, vendas, propostas, { data: documentos }] = await Promise.all([
     supabase
       .from("clientes")
       .select("id, nome, cpf, email, telefone, data_nascimento, observacoes, criado_em")
@@ -135,6 +159,7 @@ export const obterCliente = cache(async (id: string) => {
       .eq("id", id)
       .maybeSingle(),
     listarVendas(),
+    listarPropostas(),
     supabase
       .from("documentos")
       .select("id, nome, pasta, status, enviado_por, visivel_cliente, criado_em, mime, tamanho_bytes")
@@ -143,7 +168,12 @@ export const obterCliente = cache(async (id: string) => {
       .order("criado_em", { ascending: false }),
   ]);
   if (!cliente) notFound();
-  return { ...cliente, vendas: vendas.filter((v) => v.clienteId === id), documentos: documentos ?? [] };
+  return {
+    ...cliente,
+    vendas: vendas.filter((v) => v.clienteId === id),
+    propostas: propostas.filter((v) => v.clienteId === id),
+    documentos: documentos ?? [],
+  };
 });
 
 /** Venda completa, com nomes relacionados e parcelas da comissão. 404 se não existir no tenant. */

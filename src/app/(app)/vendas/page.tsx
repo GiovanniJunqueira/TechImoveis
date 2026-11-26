@@ -1,14 +1,15 @@
+import Link from "next/link";
 import { Plus } from "lucide-react";
-import { VendasPorAno } from "@/components/vendas-por-ano";
+import { LinhaProposta, VendasPorAno } from "@/components/vendas-por-ano";
 import { EstadoVazio } from "@/components/estado-vazio";
-import { Card, Money, PageHeader, PrimaryButton, SENSIVEL, heroNumber } from "@/components/ui";
+import { Card, Money, PageHeader, PrimaryButton, SENSIVEL, SectionTitle, heroNumber } from "@/components/ui";
 import { OcultarValores } from "@/components/ocultar-valores";
-import { listarVendas } from "@/lib/dal";
+import { listarPropostas, listarVendas } from "@/lib/dal";
 import { agruparPorAno, hojeISO } from "@/lib/vendas";
 import { brlInt, plural } from "@/lib/format";
 
 export default async function VendasPage() {
-  const vendas = await listarVendas();
+  const [vendas, propostas] = await Promise.all([listarVendas(), listarPropostas()]);
   const anos = agruparPorAno(vendas);
   const total = anos.reduce((s, a) => s + a.comissao, 0);
   const vgv = anos.reduce((s, a) => s + a.vgv, 0);
@@ -17,8 +18,23 @@ export default async function VendasPage() {
     <>
       <PageHeader title="Vendas" subtitle="Suas comissões, por ano, mês e cliente." action={<OcultarValores />} />
 
+      <PrimaryButton href="/vendas/nova" className="mb-6">
+        <Plus className="size-5" /> Nova proposta
+      </PrimaryButton>
+
+      {propostas.length > 0 && (
+        <>
+          <SectionTitle>{propostas.length === 1 ? "Proposta em andamento" : "Propostas em andamento"}</SectionTitle>
+          <div className="mb-8 flex flex-col gap-2">
+            {propostas.map((p) => (
+              <LinhaProposta key={p.id} proposta={p} />
+            ))}
+          </div>
+        </>
+      )}
+
       {vendas.length === 0 ? (
-        <EstadoVazio titulo="Nenhuma venda ainda" texto="Cadastre sua primeira venda para acompanhar comissões por ano, mês e cliente." />
+        <EstadoVazio titulo="Nenhuma venda fechada ainda" texto="Faça a proposta com o cliente e, quando ele fechar, toque em Fechar venda para registrar a sua comissão." />
       ) : (
         <>
           <Card className="mb-3 px-6 py-6">
@@ -32,9 +48,9 @@ export default async function VendasPage() {
         </>
       )}
 
-      <PrimaryButton href="/vendas/nova" className="mt-6">
-        <Plus className="size-5" /> Nova venda
-      </PrimaryButton>
+      <Link href="/vendas/nova?status=fechada" className="mt-6 block py-2 text-center text-[15px] text-accent">
+        Registrar uma venda já fechada
+      </Link>
     </>
   );
 }

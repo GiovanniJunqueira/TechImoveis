@@ -20,10 +20,12 @@ const TIPOS = [
   { value: "revenda", label: "Revenda" },
 ];
 const STATUS = [
-  { value: "fechada", label: "Fechada" },
   { value: "proposta", label: "Proposta" },
+  { value: "fechada", label: "Venda fechada" },
 ];
 const STATUS_EDICAO = [...STATUS, { value: "distrato", label: "Distrato" }];
+// Proposta já salva: fecha pelo botão "Fechar venda" (que registra a comissão), não por aqui.
+const STATUS_EDICAO_PROPOSTA = [STATUS[0], { value: "distrato", label: "Desistiu" }];
 
 /** Valores de uma venda existente, para editar. */
 export type VendaInicial = {
@@ -65,10 +67,12 @@ export function VendaForm({
   clienteInicial,
   hoje,
   inicial,
+  statusInicial = "proposta",
 }: {
   opcoes: Opcoes;
   clienteInicial?: string;
   hoje: string;
+  statusInicial?: "proposta" | "fechada";
   /** Com uma venda, o formulário edita em vez de criar. As parcelas da comissão ficam no detalhe da venda. */
   inicial?: VendaInicial;
 }) {
@@ -76,7 +80,7 @@ export function VendaForm({
 
   const [cliente, setCliente] = useState(inicial?.clienteId ?? clienteInicial ?? (opcoes.clientes.length ? "" : "novo"));
   const [tipo, setTipo] = useState(inicial?.tipo ?? "lancamento");
-  const [status, setStatus] = useState(inicial?.status ?? "fechada");
+  const [status, setStatus] = useState(inicial?.status ?? statusInicial);
   const [construtora, setConstrutora] = useState(inicial?.construtora ?? "");
   const [valor, setValor] = useState(inicial?.valor ?? 0);
   const [pct, setPct] = useState(inicial?.pct != null ? pctTexto(inicial.pct) : "");
@@ -95,10 +99,12 @@ export function VendaForm({
   };
 
   const lancamento = tipo === "lancamento";
+  // Proposta é feita na frente do cliente: nada de comissão na tela.
+  const proposta = status === "proposta";
 
   return (
     <FormSemReset acao={acao} className="flex flex-col">
-      <Segmented name="status" options={inicial ? STATUS_EDICAO : STATUS} value={status} onChange={setStatus} />
+      <Segmented name="status" options={inicial ? (inicial.status === "proposta" ? STATUS_EDICAO_PROPOSTA : STATUS_EDICAO) : STATUS} value={status} onChange={setStatus} />
 
       <GroupLabel>Cliente</GroupLabel>
       <FieldGroup>
@@ -165,11 +171,11 @@ export function VendaForm({
         ))}
       </datalist>
 
-      <GroupLabel>Venda</GroupLabel>
+      <GroupLabel>{proposta ? "Proposta" : "Venda"}</GroupLabel>
       <FieldGroup>
-        <Field label="Data da venda" name="data_venda" type="date" required defaultValue={inicial?.data ?? hoje} className={dateCls} />
+        <Field label={proposta ? "Data da proposta" : "Data da venda"} name="data_venda" type="date" required defaultValue={inicial?.data ?? hoje} className={dateCls} />
         <MoneyField
-          label="Valor da venda"
+          label={proposta ? "Valor do imóvel" : "Valor da venda"}
           name="valor_venda"
           required
           value={valor}
@@ -180,6 +186,8 @@ export function VendaForm({
         />
       </FieldGroup>
 
+      {!proposta && (
+        <>
       <GroupLabel>Comissão</GroupLabel>
       <FieldGroup>
         <label className="flex flex-col px-4 pt-2.5 pb-2">
@@ -211,7 +219,10 @@ export function VendaForm({
         />
       </FieldGroup>
 
-      {comissao > 0 && !inicial && (
+        </>
+      )}
+
+      {!proposta && comissao > 0 && !inicial && (
         <>
           <GroupLabel>Quem paga a comissão</GroupLabel>
           <Segmented name="pagador_tipo" options={PAGADORES} value={pagador} onChange={setPagador} />
@@ -233,13 +244,13 @@ export function VendaForm({
 
       <GroupLabel>Observações</GroupLabel>
       <FieldGroup>
-        <TextAreaField label="Anotações sobre a venda" name="observacoes" defaultValue={inicial?.observacoes} />
+        <TextAreaField label={proposta ? "Anotações (aparecem só para você)" : "Anotações sobre a venda"} name="observacoes" defaultValue={inicial?.observacoes} />
       </FieldGroup>
 
       <div className="mt-6 flex flex-col gap-3">
         <FormMessage erro={estado.erro} />
         <SubmitButton pendingLabel="Salvando…" pending={salvando}>
-          {inicial ? "Salvar alterações" : "Salvar venda"}
+          {inicial ? "Salvar alterações" : proposta ? "Salvar e montar o plano" : "Salvar venda"}
         </SubmitButton>
       </div>
     </FormSemReset>

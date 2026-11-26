@@ -10,7 +10,10 @@ export default async function EditarVendaPage({ params }: PageProps<"/vendas/[id
   return (
     <div className="mx-auto max-w-xl">
       <VoltarLink href={`/vendas/${v.id}`}>Venda</VoltarLink>
-      <PageHeader title="Editar venda" subtitle="As parcelas da comissão ficam na tela da venda." />
+      <PageHeader
+        title={v.status === "proposta" ? "Editar proposta" : "Editar venda"}
+        subtitle={v.status === "proposta" ? "A comissão entra quando você fechar a venda." : "As parcelas da comissão ficam na tela da venda."}
+      />
       <VendaForm
         opcoes={opcoes}
         hoje={hojeISO()}

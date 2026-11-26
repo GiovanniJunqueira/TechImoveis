@@ -172,8 +172,10 @@ async function montarVenda(supabase: Supabase, tenantId: string, form: FormData,
 }
 
 export async function criarVenda(_: EstadoForm, form: FormData): Promise<EstadoForm> {
-  const v = lerVenda(form);
-  if ("erro" in v) return { erro: v.erro };
+  const lida = lerVenda(form);
+  if ("erro" in lida) return { erro: lida.erro };
+  // Proposta não tem comissão: ela só é registrada ao fechar a venda.
+  const v = lida.status === "proposta" ? { ...lida, pct: null, comissao: 0 } : lida;
   const pagadorTipo = um(texto(form, "pagador_tipo"), PAGADORES, "cliente");
   const dataPrevista = texto(form, "data_prevista");
   const recebida = form.get("recebida") === "on";
@@ -210,7 +212,8 @@ export async function criarVenda(_: EstadoForm, form: FormData): Promise<EstadoF
   }
 
   revalidatePath("/", "layout");
-  redirect(`/vendas/${vendaId}`);
+  // Proposta: segue direto para montar o plano de pagamento com o cliente.
+  redirect(v.status === "proposta" ? `/vendas/${vendaId}/plano` : `/vendas/${vendaId}`);
 }
 
 export async function atualizarVenda(id: string, _: EstadoForm, form: FormData): Promise<EstadoForm> {
@@ -219,13 +222,19 @@ export async function atualizarVenda(id: string, _: EstadoForm, form: FormData):
 
   const { supabase, tenant } = await getContexto();
   try {
-    const colunas = await montarVenda(supabase, tenant.id, form, v);
+    const { data: atual } = await supabase.from("vendas").select("status").eq("tenant_id", tenant.id).eq("id", id).maybeSingle();
+    if (!atual) return { erro: "Venda não encontrada." };
+    // Proposta só vira venda fechada pelo "Fechar venda", que registra a comissão.
+    if (atual.status === "proposta" && v.status === "fechada") return { erro: "Para fechar, use o botão Fechar venda." };
+    const { comissao_percentual, comissao_centavos, ...resto } = await montarVenda(supabase, tenant.id, form, v);
+    // Sem campos de comissão na tela (proposta): mantém o que já estava gravado.
+    const colunas = form.has("comissao") ? { ...resto, comissao_percentual, comissao_centavos } : resto;
     const { error } = await supabase.from("vendas").update(colunas).eq("tenant_id", tenant.id).eq("id", id);
     if (error) throw error;
 
     // Caso comum: uma única parcela de comissão ainda não recebida acompanha o novo valor.
     const { data: recs } = await supabase.from("recebimentos").select("id, data_recebida").eq("tenant_id", tenant.id).eq("venda_id", id);
-    if (recs?.length === 1 && !recs[0].data_recebida) {
+    if (form.has("comissao") && recs?.length === 1 && !recs[0].data_recebida) {
       if (v.comissao > 0) await supabase.from("recebimentos").update({ valor_previsto_centavos: v.comissao }).eq("id", recs[0].id);
       else await supabase.from("recebimentos").delete().eq("id", recs[0].id);
     }
@@ -319,4 +328,58 @@ export async function excluirDocumento(id: string): Promise<EstadoForm> {
   await apagarArquivo(doc.chave_arquivo).catch((e) => console.error(e));
   revalidatePath(`/clientes/${doc.cliente_id}`);
   return {};
+}
+
+/**
+ * Proposta -> venda fechada. É aqui (e só aqui) que entra a comissão, longe da tela que
+ * o cliente vê na proposta. Cria a parcela de comissão a receber (ou já recebida).
+ */
+export async function fecharVenda(id: string, _: EstadoForm, form: FormData): Promise<EstadoForm> {
+  const dataVenda = texto(form, "data_venda");
+  const valorVenda = Number(texto(form, "valor_venda")) || 0;
+  const pctTexto = texto(form, "comissao_pct").replace(",", ".");
+  const pct = pctTexto ? Number(pctTexto) : null;
+  const comissao = Number(texto(form, "comissao")) || 0;
+  const pagadorTipo = um(texto(form, "pagador_tipo"), PAGADORES, "cliente");
+  const dataPrevista = texto(form, "data_prevista");
+  const recebida = form.get("recebida") === "on";
+  const dataRecebida = texto(form, "data_recebida");
+
+  if (!dataValida(dataVenda)) return { erro: "Informe a data do fechamento." };
+  if (valorVenda <= 0) return { erro: "Informe o valor da venda." };
+  if (pct !== null && (Number.isNaN(pct) || pct < 0 || pct > 100)) return { erro: "Percentual de comissão inválido." };
+  if (comissao > 0 && !dataValida(dataPrevista)) return { erro: "Informe quando a comissão deve ser paga." };
+  if (comissao > 0 && recebida && !dataValida(dataRecebida)) return { erro: "Informe quando a comissão foi recebida." };
+
+  const { supabase, tenant } = await getContexto();
+  const { data: venda } = await supabase.from("vendas").select("id, status").eq("tenant_id", tenant.id).eq("id", id).maybeSingle();
+  if (!venda) return { erro: "Proposta não encontrada." };
+  if (venda.status !== "proposta") return { erro: "Esta venda já está fechada." };
+
+  const { error } = await supabase
+    .from("vendas")
+    .update({ status: "fechada", data_venda: dataVenda, valor_venda_centavos: valorVenda, comissao_percentual: pct, comissao_centavos: comissao })
+    .eq("tenant_id", tenant.id)
+    .eq("id", id);
+  if (error) return { erro: "Não foi possível fechar a venda. Tente de novo." };
+
+  if (comissao > 0) {
+    const { error: erroRec } = await supabase.from("recebimentos").insert({
+      tenant_id: tenant.id,
+      venda_id: id,
+      pagador_tipo: pagadorTipo,
+      pagador_nome: opcional(form, "pagador_nome"),
+      valor_previsto_centavos: comissao,
+      data_prevista: dataPrevista,
+      ...(recebida ? { data_recebida: dataRecebida, valor_recebido_centavos: comissao, forma: um(texto(form, "forma"), FORMAS, "pix") } : {}),
+    });
+    if (erroRec) {
+      // Sem transação pela API: volta para proposta para não ficar pela metade.
+      await supabase.from("vendas").update({ status: "proposta", comissao_percentual: null, comissao_centavos: 0 }).eq("tenant_id", tenant.id).eq("id", id);
+      return { erro: "Não foi possível registrar a comissão. Tente de novo." };
+    }
+  }
+
+  revalidatePath("/", "layout");
+  redirect(`/vendas/${id}`);
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Mail, MessageCircle, Pencil, Phone, Plus } from "lucide-react";
 import { Card, Money, PrimaryButton, SectionTitle, VoltarLink } from "@/components/ui";
-import { LinhaVenda } from "@/components/vendas-por-ano";
+import { LinhaProposta, LinhaVenda } from "@/components/vendas-por-ano";
 import { BotaoExcluir } from "@/components/botao-excluir";
 import { excluirCliente } from "../../cadastro-actions";
 import { obterCliente } from "@/lib/dal";
@@ -77,6 +77,17 @@ export default async function ClientePage({ params }: PageProps<"/clientes/[id]"
         {c.observacoes && <Linha rotulo="Observações" valor={c.observacoes} />}
       </Card>
 
+      {c.propostas.length > 0 && (
+        <>
+          <SectionTitle>{c.propostas.length === 1 ? "Proposta" : "Propostas"}</SectionTitle>
+          <div className="flex flex-col gap-2">
+            {c.propostas.map((p) => (
+              <LinhaProposta key={p.id} proposta={p} mostrarCliente={false} />
+            ))}
+          </div>
+        </>
+      )}
+
       <SectionTitle action={c.vendas.length > 0 && <Money cents={comissao} signed whole className="text-[17px] font-semibold" />}>
         {c.vendas.length > 0 ? plural(c.vendas.length, "Venda", "Vendas") : "Vendas"}
       </SectionTitle>
@@ -87,10 +98,10 @@ export default async function ClientePage({ params }: PageProps<"/clientes/[id]"
           ))}
         </div>
       ) : (
-        <Card className="px-5 py-5 text-[15px] text-label-2">Nenhuma venda para este cliente ainda.</Card>
+        <Card className="px-5 py-5 text-[15px] text-label-2">Nenhuma venda fechada com este cliente ainda.</Card>
       )}
       <PrimaryButton href={`/vendas/nova?cliente=${c.id}`} className="mt-3">
-        <Plus className="size-5" /> Nova venda para {c.nome.split(" ")[0]}
+        <Plus className="size-5" /> Nova proposta para {c.nome.split(" ")[0]}
       </PrimaryButton>
 
       <Documentos clienteId={c.id} documentos={c.documentos} />
@@ -103,7 +114,7 @@ export default async function ClientePage({ params }: PageProps<"/clientes/[id]"
         link={link}
       />
 
-      {c.vendas.length === 0 && (
+      {c.vendas.length === 0 && c.propostas.length === 0 && (
         <BotaoExcluir
           className="mt-10"
           acao={excluirCliente.bind(null, c.id)}

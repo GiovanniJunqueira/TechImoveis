@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { GrupoAno, GrupoMes, Venda } from "@/lib/vendas";
+import type { Proposta } from "@/lib/dal";
 import { MONTHS, brl, dayLabel, plural } from "@/lib/format";
 import { Badge, Chevron, Money, SENSIVEL, cn } from "@/components/ui";
 
@@ -52,6 +53,28 @@ export function LinhaVenda({ venda, mostrarCliente = true }: { venda: Venda; mos
         <Badge tone={s.tone}>{s.label}</Badge>
       </div>
       <div className="mt-0.5 text-[13px] text-label-2">Venda de <span className={SENSIVEL}>{brl(venda.valorVenda)}</span></div>
+    </Link>
+  );
+}
+
+/** Proposta em andamento: cliente, imóvel e valor. Nunca mostra comissão (pode estar na tela com o cliente). */
+export function LinhaProposta({ proposta: p, mostrarCliente = true }: { proposta: Proposta; mostrarCliente?: boolean }) {
+  return (
+    <Link
+      href={`/vendas/${p.id}`}
+      className="block w-full rounded-[18px] bg-surface px-4 py-3.5 text-left transition active:scale-[0.99] active:bg-surface-3 md:px-5"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-[16px] font-semibold">{mostrarCliente ? p.cliente : p.imovel}</span>
+        <span className={cn(SENSIVEL, "shrink-0 text-[16px] font-semibold tabular-nums")}>{brl(p.valor)}</span>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[13px] text-label-2">
+          {dayLabel(p.data)}
+          {mostrarCliente ? `, ${p.imovel}` : p.construtora ? `, ${p.construtora}` : ""}
+        </span>
+        <Badge tone="pending">Proposta</Badge>
+      </div>
     </Link>
   );
 }

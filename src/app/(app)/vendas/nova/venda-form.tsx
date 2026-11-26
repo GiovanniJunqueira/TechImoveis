@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
-import { UserPlus } from "lucide-react";
+import { EscolherCliente } from "./escolher-cliente";
 import { atualizarVenda, criarVenda } from "../../cadastro-actions";
 import type { EstadoForm } from "@/app/(auth)/actions";
 import { Field, FieldGroup, FormSemReset, FormMessage, GroupLabel, MoneyField, Segmented, SelectField, SubmitButton, TextAreaField, Toggle } from "@/components/form";
@@ -107,26 +106,7 @@ export function VendaForm({
       <Segmented name="status" options={inicial ? (inicial.status === "proposta" ? STATUS_EDICAO_PROPOSTA : STATUS_EDICAO) : STATUS} value={status} onChange={setStatus} />
 
       <GroupLabel>Cliente</GroupLabel>
-      <FieldGroup>
-        <SelectField
-          label="Cliente"
-          name="cliente_id"
-          required
-          value={cliente}
-          onChange={(e) => setCliente(e.target.value)}
-          options={[
-            { value: "", label: "Escolha o cliente" },
-            { value: "novo", label: "+ Novo cliente" },
-            ...opcoes.clientes.map((c) => ({ value: c.id, label: c.nome })),
-          ]}
-        />
-        {cliente === "novo" && <Field label="Nome do novo cliente" name="cliente_nome" required autoFocus autoComplete="off" />}
-      </FieldGroup>
-      {cliente === "novo" && (
-        <Link href="/clientes/novo?voltar=/vendas/nova" className="mt-2 flex items-center gap-1.5 px-4 text-[15px] text-accent">
-          <UserPlus className="size-4" /> Cadastro completo (CPF, telefone…)
-        </Link>
-      )}
+      <EscolherCliente clientes={opcoes.clientes} valor={cliente} aoMudar={setCliente} />
 
       <GroupLabel>Imóvel</GroupLabel>
       <Segmented name="tipo" options={TIPOS} value={tipo} onChange={setTipo} />

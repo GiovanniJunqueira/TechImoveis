@@ -115,6 +115,13 @@ export function maximoParcela(
   return limites.length ? Math.min(...limites) : null;
 }
 
+/**
+ * Série que já entra com o máximo: só as limitadas pela renda. As que também têm teto no total
+ * do imóvel (ex.: pós-chave) são opcionais: começam sem valor e o corretor usa se precisar.
+ */
+export const preencheNoMaximo = (s: { teto_renda_percentual?: number | null; teto_imovel_percentual?: number | null }) =>
+  !!s.teto_renda_percentual && !s.teto_imovel_percentual;
+
 /** Arredonda para baixo em reais inteiros (como as tabelas das construtoras). */
 export const reaisInteiros = (centavos: number) => Math.floor(centavos / 100) * 100;
 
@@ -200,7 +207,7 @@ export function seriesParaModelo(series: Serie[], valorVenda: number, dataVenda:
 export function modeloParaSeries(modelo: SerieModelo[], valorVenda: number, dataVenda: string, renda: number | null = null) {
   const series = modelo.map((m, ordem) => {
     // Série com teto e sem valor definido: já entra com o máximo permitido (em reais inteiros).
-    const maximo = maximoParcela(m, renda, valorVenda);
+    const maximo = preencheNoMaximo(m) ? maximoParcela(m, renda, valorVenda) : null;
     return {
       tipo: m.tipo,
       descricao: m.descricao,

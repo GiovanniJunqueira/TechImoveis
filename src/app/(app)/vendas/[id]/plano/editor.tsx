@@ -20,6 +20,7 @@ import {
   TIPO_SERIE_LABEL,
   financiamentoLiquido,
   maximoParcela,
+  preencheNoMaximo,
   modeloParaSeries,
   reaisInteiros,
   type GrupoSerie,
@@ -450,6 +451,7 @@ export function EditorPlano({
   const [aprovado, setAprovado] = useState(aprovadoInicial ?? 0);
   const [desconto, setDesconto] = useState(descontoInicial != null ? String(descontoInicial).replace(".", ",") : "");
   const comTeto = linhas.filter((l) => l.tetoRenda || l.tetoImovel);
+  const automaticas = linhas.filter((l) => preencheNoMaximo({ teto_renda_percentual: l.tetoRenda, teto_imovel_percentual: l.tetoImovel }));
   const posEntrega = modelo?.regras.parcela_pos_entrega_percentual_renda;
   const [estado, acao, salvando] = useActionState<EstadoForm, FormData>(salvarPlano.bind(null, vendaId), {});
 
@@ -524,6 +526,7 @@ export function EditorPlano({
   const preencherMaximos = () =>
     setLinhas((ls) =>
       ls.map((l) => {
+        if (!preencheNoMaximo({ teto_renda_percentual: l.tetoRenda, teto_imovel_percentual: l.tetoImovel })) return l;
         const max = maximoParcela({ quantidade: qtdDe(l), teto_renda_percentual: l.tetoRenda, teto_imovel_percentual: l.tetoImovel }, renda || null, valorVenda);
         return max != null ? { ...l, valor: reaisInteiros(max), emAberto: false } : l;
       }),
@@ -589,9 +592,9 @@ export function EditorPlano({
 
       <Card className="mt-3 divide-y divide-separator overflow-hidden">
         <MoneyField label="Renda familiar mensal" name="renda" value={renda} onChange={setRenda} />
-        {comTeto.length > 0 && renda > 0 && (
+        {automaticas.length > 0 && renda > 0 && (
           <button type="button" onClick={preencherMaximos} className="flex w-full items-center gap-1.5 px-4 py-2.5 text-left text-[14px] font-medium text-accent">
-            <Wand2 className="size-4" /> Preencher {plural(comTeto.length, "linha com teto", "linhas com teto")} com o máximo
+            <Wand2 className="size-4" /> Preencher {plural(automaticas.length, "linha com teto", "linhas com teto")} com o máximo
           </button>
         )}
         {posEntrega != null && renda > 0 && (

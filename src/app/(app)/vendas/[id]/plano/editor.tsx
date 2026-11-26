@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Building2, FilePlus2, History, LayoutTemplate, Plus, Trash2, Wand2 } from "lucide-react";
+import { Building2, Eraser, FilePlus2, History, LayoutTemplate, Plus, Trash2, Wand2 } from "lucide-react";
 import { salvarPlano } from "../../../plano-actions";
 import type { EstadoForm } from "@/app/(auth)/actions";
 import type { Modelo } from "@/lib/dal";
 import { Field, FormMessage, FormSemReset, MoneyField, SelectField, SubmitButton } from "@/components/form";
 import { Badge, Card, Chevron, cn } from "@/components/ui";
 import { Expande } from "@/components/expande";
-import { brl, plural } from "@/lib/format";
+import { brl, dataCurta, plural } from "@/lib/format";
 import {
   BANCOS,
   GRUPO_LABEL,
@@ -41,6 +41,7 @@ type Linha = {
   tetoRenda: number | null; // máx. de cada parcela em % da renda
   tetoImovel: number | null; // máx. da série em % do imóvel
   completa: boolean; // fica com a diferença ao "completar"
+  doModelo: boolean; // veio do modelo ou do plano salvo: não some, só zera
 };
 
 let seq = 0;
@@ -65,6 +66,7 @@ function linhaNova(tipo: TipoSerie, hoje: string, valor = 0): Linha {
     tetoRenda: null,
     tetoImovel: null,
     completa: false,
+    doModelo: false,
   };
 }
 
@@ -81,6 +83,7 @@ const deSeries = (series: Serie[]): Linha[] =>
     tetoRenda: s.teto_renda_percentual ?? null,
     tetoImovel: s.teto_imovel_percentual ?? null,
     completa: false,
+    doModelo: true,
   }));
 
 function deModelo(m: Modelo, valorVenda: number, dataVenda: string, renda: number | null): Linha[] {
@@ -98,6 +101,7 @@ function deModelo(m: Modelo, valorVenda: number, dataVenda: string, renda: numbe
       tetoRenda: origem.teto_renda_percentual ?? null,
       tetoImovel: origem.teto_imovel_percentual ?? null,
       completa: origem.completa === true,
+      doModelo: true,
     };
   });
 }
@@ -128,6 +132,8 @@ function EditorLinha({
   grupo,
   renda,
   valorVenda,
+  aberta,
+  aoAlternar,
   aoMudar,
   aoRemover,
 }: {
@@ -135,6 +141,8 @@ function EditorLinha({
   grupo: GrupoSerie;
   renda: number;
   valorVenda: number;
+  aberta: boolean;
+  aoAlternar: () => void;
   aoMudar: (p: Partial<Linha>) => void;
   aoRemover: () => void;
 }) {
@@ -149,16 +157,17 @@ function EditorLinha({
   return (
     <div
       className={cn(
-        "divide-y divide-separator overflow-hidden rounded-[18px] border border-white/[0.06] bg-surface transition-colors",
+        "overflow-hidden rounded-[18px] border border-white/[0.06] bg-surface transition-colors",
         destacar && "border-pending/70 bg-pending/[0.06]",
         teto?.acima && "border-negative/70 bg-negative/[0.06]",
       )}
     >
-      <div className="flex items-center gap-2 py-2 pr-1.5 pl-4">
+      {/* Fechada mostra só o resumo; um toque abre para editar, outro fecha. */}
+      <button type="button" onClick={aoAlternar} aria-expanded={aberta} className="flex w-full items-center gap-2 py-3 pr-3 pl-4 text-left">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-[15px] font-semibold">{l.descricao.trim() || TIPO_SERIE_LABEL[l.tipo]}</span>
-            {destacar && <Badge tone="pending">Preencher valor</Badge>}
+            {destacar && <Badge tone="pending">Preencher</Badge>}
             {teto?.acima && <Badge tone="negative">Acima do máximo</Badge>}
           </div>
           <div className="text-[13px] text-label-2 tabular-nums">
@@ -169,70 +178,80 @@ function EditorLinha({
             ) : l.valor > 0 ? (
               <span className="sensivel">{brl(l.valor)}</span>
             ) : (
-              "Sem valor"
+              "Sem valor: não entra no plano"
+            )}
+            {l.vencimento && <> · {dataCurta(l.vencimento)}</>}
+          </div>
+        </div>
+        <Chevron open={aberta} />
+      </button>
+
+      <Expande aberto={aberta}>
+        <div className="divide-y divide-separator border-t border-separator">
+          {/* Campo em digitação fica visível mesmo com "ocultar valores": o corretor precisa ver o que digita. */}
+          <MoneyField label={qtd > 1 ? "Valor de cada parcela" : "Valor"} name="valor_parcela" value={l.valor} onChange={(valor) => aoMudar({ valor })} />
+          {teto && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 text-[13px]">
+              <span className={cn("tabular-nums", teto.acima ? "text-negative" : "text-label-2")}>
+                {teto.maximo != null ? (
+                  <>
+                    Máx. <span className="sensivel">{brl(teto.maximo)}</span> por parcela ({teto.regras})
+                  </>
+                ) : teto.faltaRenda ? (
+                  `Máx. ${teto.regras}: informe a renda`
+                ) : (
+                  `Máx. ${teto.regras}`
+                )}
+              </span>
+              {teto.maximo != null && l.valor !== reaisInteiros(teto.maximo) && (
+                <button type="button" onClick={() => aoMudar({ valor: reaisInteiros(teto.maximo!), emAberto: false })} className="shrink-0 font-medium text-accent">
+                  Usar o máximo
+                </button>
+              )}
+            </div>
+          )}
+          <div className={cn("grid divide-x divide-separator", qtd > 1 ? "grid-cols-2" : "grid-cols-1")}>
+            <Field
+              label={qtd > 1 ? "1º vencimento" : "Vencimento (opcional)"}
+              type="date"
+              value={l.vencimento}
+              onChange={(e) => aoMudar({ vencimento: e.target.value })}
+              className="min-w-0 [color-scheme:dark]"
+            />
+            {qtd > 1 && <SelectField label="Frequência" value={String(l.intervalo)} onChange={(e) => aoMudar({ intervalo: Number(e.target.value) })} options={intervalos} />}
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-separator">
+            <SelectField
+              label="Tipo"
+              value={l.tipo}
+              onChange={(e) => {
+                const tipo = e.target.value as TipoSerie;
+                aoMudar({ tipo, intervalo: PADRAO_SERIE[tipo].intervalo || l.intervalo || 1 });
+              }}
+              options={TIPOS_POR_GRUPO[grupo].map((t) => ({ value: t, label: TIPO_SERIE_LABEL[t] }))}
+            />
+            <Field
+              label="Quantidade"
+              inputMode="numeric"
+              value={l.quantidade}
+              onChange={(e) => aoMudar({ quantidade: e.target.value.replace(/\D/g, "").slice(0, 3) })}
+            />
+          </div>
+          <Field label="Descrição (opcional)" value={l.descricao} placeholder={TIPO_SERIE_LABEL[l.tipo]} maxLength={80} autoComplete="off" onChange={(e) => aoMudar({ descricao: e.target.value })} />
+          {/* Linha do modelo da construtora nunca some: "Zerar" limpa o valor e fecha. Só a linha avulsa pode ser removida. */}
+          <div className="flex justify-end px-2 py-1.5">
+            {l.doModelo ? (
+              <button type="button" onClick={aoRemover} className="flex h-9 items-center gap-1.5 rounded-full px-3 text-[14px] text-label-2 transition active:bg-surface-2">
+                <Eraser className="size-4" /> Zerar valor
+              </button>
+            ) : (
+              <button type="button" onClick={aoRemover} className="flex h-9 items-center gap-1.5 rounded-full px-3 text-[14px] text-negative transition active:bg-surface-2">
+                <Trash2 className="size-4" /> Remover linha
+              </button>
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={aoRemover}
-          aria-label={`Remover ${TIPO_SERIE_LABEL[l.tipo]}`}
-          className="grid size-9 shrink-0 place-items-center rounded-full text-label-2 transition active:bg-surface-2"
-        >
-          <Trash2 className="size-[18px]" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 divide-x divide-separator">
-        <SelectField
-          label="Tipo"
-          value={l.tipo}
-          onChange={(e) => {
-            const tipo = e.target.value as TipoSerie;
-            aoMudar({ tipo, intervalo: PADRAO_SERIE[tipo].intervalo || l.intervalo || 1 });
-          }}
-          options={TIPOS_POR_GRUPO[grupo].map((t) => ({ value: t, label: TIPO_SERIE_LABEL[t] }))}
-        />
-        <Field
-          label="Quantidade"
-          inputMode="numeric"
-          value={l.quantidade}
-          onChange={(e) => aoMudar({ quantidade: e.target.value.replace(/\D/g, "").slice(0, 3) })}
-        />
-      </div>
-      <Field label="Descrição (opcional)" value={l.descricao} placeholder={TIPO_SERIE_LABEL[l.tipo]} maxLength={80} autoComplete="off" onChange={(e) => aoMudar({ descricao: e.target.value })} />
-      {/* Campo em digitação fica visível mesmo com "ocultar valores": o corretor precisa ver o que digita. */}
-      <MoneyField label={qtd > 1 ? "Valor de cada parcela" : "Valor"} name="valor_parcela" value={l.valor} onChange={(valor) => aoMudar({ valor })} />
-      {teto && (
-        <div className="flex items-center justify-between gap-3 px-4 py-2 text-[13px]">
-          <span className={cn("tabular-nums", teto.acima ? "text-negative" : "text-label-2")}>
-            {teto.maximo != null ? (
-              <>
-                Máx. <span className="sensivel">{brl(teto.maximo)}</span> por parcela ({teto.regras})
-              </>
-            ) : teto.faltaRenda ? (
-              `Máx. ${teto.regras}: informe a renda`
-            ) : (
-              `Máx. ${teto.regras}`
-            )}
-          </span>
-          {teto.maximo != null && l.valor !== reaisInteiros(teto.maximo) && (
-            <button type="button" onClick={() => aoMudar({ valor: reaisInteiros(teto.maximo!), emAberto: false })} className="shrink-0 font-medium text-accent">
-              Usar o máximo
-            </button>
-          )}
-        </div>
-      )}
-      <div className={cn("grid divide-x divide-separator", qtd > 1 ? "grid-cols-2" : "grid-cols-1")}>
-        <Field
-          label={qtd > 1 ? "1º vencimento" : "Vencimento (opcional)"}
-          type="date"
-          value={l.vencimento}
-          onChange={(e) => aoMudar({ vencimento: e.target.value })}
-          className="min-w-0 [color-scheme:dark]"
-        />
-        {qtd > 1 && <SelectField label="Frequência" value={String(l.intervalo)} onChange={(e) => aoMudar({ intervalo: Number(e.target.value) })} options={intervalos} />}
-      </div>
+      </Expande>
     </div>
   );
 }
@@ -440,19 +459,47 @@ export function EditorPlano({
   const subtotal = { entrada: entrada.reduce((s, l) => s + totalDe(l), 0), banco: doBanco.reduce((s, l) => s + totalDe(l), 0) };
   const total = subtotal.entrada + subtotal.banco;
   const diferenca = valorVenda - total;
-  const abertas = linhas.filter((l) => l.valor === 0).length;
+  const semValor = linhas.filter((l) => l.valor === 0).length;
+  const [abertas, setAbertas] = useState<Set<string>>(() => new Set());
+  const alternar = (chave: string) =>
+    setAbertas((a) => {
+      const n = new Set(a);
+      if (n.has(chave)) n.delete(chave);
+      else n.add(chave);
+      return n;
+    });
+  const fechar = (chave: string) => setAbertas((a) => (a.has(chave) ? new Set([...a].filter((c) => c !== chave)) : a));
+  // Entrada necessária: o que o banco não cobre (valor do imóvel - financiamento - FGTS - subsídio).
+  const entradaNecessaria = Math.max(valorVenda - subtotal.banco, 0);
+  const faltaEntrada = entradaNecessaria - subtotal.entrada;
 
   const mudar = (chave: string, p: Partial<Linha>) => setLinhas((ls) => ls.map((l) => (l.chave === chave ? { ...l, ...p } : l)));
-  const remover = (chave: string) => setLinhas((ls) => ls.filter((l) => l.chave !== chave));
-  const adicionar = (g: GrupoSerie) => setLinhas((ls) => [...ls, linhaNova(g === "entrada" ? (entrada.length ? "mensal" : "ato") : doBanco.length ? "fgts" : "financiamento", hoje)]);
+  /** Linha do modelo só zera e fecha (não some sem querer); linha avulsa é removida. */
+  const remover = (chave: string) => {
+    const l = linhas.find((x) => x.chave === chave);
+    if (l?.doModelo) mudar(chave, { valor: 0 });
+    else setLinhas((ls) => ls.filter((x) => x.chave !== chave));
+    fechar(chave);
+  };
+  const adicionar = (g: GrupoSerie) => {
+    const nova = linhaNova(g === "entrada" ? (entrada.length ? "mensal" : "ato") : doBanco.length ? "fgts" : "financiamento", hoje);
+    setLinhas((ls) => [...ls, nova]);
+    setAbertas((a) => new Set(a).add(nova.chave));
+  };
 
   const escolher = (o: Origem) => {
     setAviso(undefined);
     if (o.tipo === "modelo") {
-      setLinhas(deModelo(o.modelo, valorVenda, dataVenda, renda || null));
       setModelo(o.modelo);
       const d = o.modelo.regras.desconto_financiamento_percentual;
-      if (d != null && !desconto) setDesconto(String(d).replace(".", ","));
+      const descontoFinal = d != null && !desconto ? String(d).replace(".", ",") : desconto;
+      setDesconto(descontoFinal);
+      // Já tem valor aprovado: o financiamento do modelo entra com o líquido (aprovado - desconto).
+      const novas = deModelo(o.modelo, valorVenda, dataVenda, renda || null);
+      const liquido = aprovado ? financiamentoLiquido(aprovado, Number(descontoFinal.replace(",", ".")) || 0) : 0;
+      const fin = novas.find((l) => l.tipo === "financiamento");
+      if (liquido && fin) Object.assign(fin, { quantidade: "1", valor: liquido, emAberto: false });
+      setLinhas(novas);
     } else {
       setLinhas(o.tipo === "atual" ? deSeries(seriesAtuais) : []);
       setModelo(null);
@@ -506,7 +553,8 @@ export function EditorPlano({
     mudar(fin.chave, { quantidade: String(qtd), valor: Math.round(novoTotal / qtd) });
   };
 
-  const envio = JSON.stringify([...entrada, ...doBanco].map(paraEnvio));
+  // Linhas sem valor não entram no plano salvo (continuam aqui para preencher depois).
+  const envio = JSON.stringify([...entrada, ...doBanco].filter((l) => l.valor > 0 && qtdDe(l) > 0).map(paraEnvio));
 
   return (
     <FormSemReset acao={acao} className="flex flex-col">
@@ -554,22 +602,79 @@ export function EditorPlano({
         {comTeto.length > 0 && !renda && <div className="px-4 py-2.5 text-[13px] text-pending">Informe a renda para calcular o máximo das parcelas.</div>}
       </Card>
 
-      {(["entrada", "banco"] as const).map((g) => {
+      {/* Primeiro o banco (quanto foi aprovado), depois a entrada: ela é o que o banco não cobre. */}
+      {(["banco", "entrada"] as const).map((g) => {
         const lista = g === "entrada" ? entrada : doBanco;
         return (
           <section key={g}>
             <div className="mt-8 mb-3 flex items-baseline justify-between gap-3 px-1">
-              <h2 className="text-[20px] font-bold tracking-[-0.01em]">{GRUPO_LABEL[g]}</h2>
+              <h2 className="text-[20px] font-bold tracking-[-0.01em]">
+                {g === "banco" ? "1." : "2."} {GRUPO_LABEL[g]}
+              </h2>
               <span className="text-[15px] text-label-2 tabular-nums">
                 <span className="sensivel">{brl(subtotal[g])}</span>
                 {subtotal[g] > 0 && <span className="sensivel"> · {pct(subtotal[g], valorVenda)}</span>}
               </span>
             </div>
+            {g === "entrada" && (
+              <Card className="mb-3 px-4 py-3 md:px-5">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[15px] text-label-2">Entrada necessária</span>
+                  <span className="sensivel text-[18px] font-semibold tabular-nums">{brl(entradaNecessaria)}</span>
+                </div>
+                <div className="mt-0.5 text-[13px] text-label-2">
+                  Valor do imóvel <span className="sensivel">{brl(valorVenda)}</span> menos o banco <span className="sensivel">{brl(subtotal.banco)}</span>
+                </div>
+                {subtotal.banco === 0 && <div className="mt-1 text-[13px] text-pending">Comece pelo valor aprovado no financiamento, acima.</div>}
+                {entradaNecessaria > 0 && (
+                  <>
+                    <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface-3">
+                      <div
+                        className={cn("h-full rounded-full transition-all", faltaEntrada < 0 ? "bg-negative" : faltaEntrada === 0 ? "bg-positive" : "bg-accent")}
+                        style={{ width: `${Math.min((subtotal.entrada / entradaNecessaria) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <div className={cn("mt-1.5 text-[13px]", faltaEntrada === 0 ? "text-positive" : faltaEntrada < 0 ? "text-negative" : "text-label-2")}>
+                      {faltaEntrada === 0 ? (
+                        "Entrada completa."
+                      ) : faltaEntrada > 0 ? (
+                        <>
+                          Preenchido <span className="sensivel">{brl(subtotal.entrada)}</span> · faltam <span className="sensivel">{brl(faltaEntrada)}</span>
+                        </>
+                      ) : (
+                        <>
+                          Passou <span className="sensivel">{brl(-faltaEntrada)}</span> da entrada necessária
+                        </>
+                      )}
+                    </div>
+                    {faltaEntrada !== 0 && alvoCompletar && subtotal.banco > 0 && (
+                      <button
+                        type="button"
+                        onClick={completar}
+                        className="mt-2.5 flex h-9 items-center gap-1.5 rounded-full bg-surface-2 px-3.5 text-[14px] font-medium text-accent transition active:scale-[0.97]"
+                      >
+                        <Wand2 className="size-4" /> Completar no {nomeAlvo}
+                      </button>
+                    )}
+                  </>
+                )}
+              </Card>
+            )}
             {g === "banco" && <BancoCampo valor={banco} aoMudar={setBanco} />}
             {g === "banco" && <FinanciamentoCampos aprovado={aprovado} desconto={desconto} aoMudar={mudarFinanciamento} />}
             <div className="flex flex-col gap-3">
               {lista.map((l) => (
-                <EditorLinha key={l.chave} l={l} grupo={g} renda={renda} valorVenda={valorVenda} aoMudar={(p) => mudar(l.chave, p)} aoRemover={() => remover(l.chave)} />
+                <EditorLinha
+                  key={l.chave}
+                  l={l}
+                  grupo={g}
+                  renda={renda}
+                  valorVenda={valorVenda}
+                  aberta={abertas.has(l.chave)}
+                  aoAlternar={() => alternar(l.chave)}
+                  aoMudar={(p) => mudar(l.chave, p)}
+                  aoRemover={() => remover(l.chave)}
+                />
               ))}
               {lista.length === 0 && (
                 <p className="px-1 text-[14px] text-label-3">{g === "entrada" ? "Nenhuma parcela de entrada." : "Nenhum valor do banco."}</p>
@@ -583,7 +688,7 @@ export function EditorPlano({
       })}
 
       <Card className="mt-8 divide-y divide-separator overflow-hidden">
-        {(["entrada", "banco"] as const).map((g) => (
+        {(["banco", "entrada"] as const).map((g) => (
           <div key={g} className="flex items-baseline justify-between gap-3 px-4 py-2.5 md:px-5">
             <span className="text-[15px] text-label-2">{g === "entrada" ? "Entrada" : `Banco${banco.trim() ? ` (${banco.trim()})` : ""}`}</span>
             <span className="sensivel text-[16px] tabular-nums">{brl(subtotal[g])}</span>
@@ -620,9 +725,9 @@ export function EditorPlano({
         </div>
       </Card>
 
-      {abertas > 0 && (
-        <p className="mt-3 px-1 text-[13px] text-pending">
-          {abertas === 1 ? "1 linha ainda está sem valor." : `${abertas} linhas ainda estão sem valor.`} Preencha ou remova antes de salvar.
+      {semValor > 0 && (
+        <p className="mt-3 px-1 text-[13px] text-label-2">
+          {semValor === 1 ? "1 linha está sem valor e não entra no plano." : `${semValor} linhas estão sem valor e não entram no plano.`}
         </p>
       )}
 
